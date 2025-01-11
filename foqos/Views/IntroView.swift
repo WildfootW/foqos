@@ -9,7 +9,7 @@ struct IntroView: View {
             VStack(spacing: 16) {
                 Image(systemName: "hourglass")
                     .font(.system(size: 48))
-                    .foregroundColor(.indigo)
+                    .foregroundColor(.purple)
                 
                 Text("Welcome to Foqos")
                     .font(.largeTitle)
@@ -50,7 +50,7 @@ struct IntroView: View {
                 .padding(.horizontal)
             ActionButton(
                 title: "Allow Screen Time Access",
-                backgroundColor: .indigo
+                backgroundColor: .purple
             ) {
                 onRequestAuthorization()
             }
@@ -70,7 +70,7 @@ struct IntroView: View {
         HStack(alignment: .top, spacing: 16) {
             Image(systemName: icon)
                 .font(.system(size: 24))
-                .foregroundColor(.indigo)
+                .foregroundColor(.purple)
                 .frame(width: 32)
             
             VStack(alignment: .leading, spacing: 4) {

@@ -33,6 +33,8 @@ struct ActionCard: View {
                 Text(label)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
             .padding()
             .background(Color(.secondarySystemBackground))
