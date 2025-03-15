@@ -89,9 +89,7 @@ class BlockedProfiles {
             profile.enableLiveActivity = newEnableLiveActivity
         }
         
-        if let newReminderTimeInSeconds = reminderTime {
-            profile.reminderTimeInSeconds = newReminderTimeInSeconds
-        }
+        profile.reminderTimeInSeconds = reminderTime
 
         profile.updatedAt = Date()
         try context.save()
