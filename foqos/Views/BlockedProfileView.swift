@@ -98,7 +98,7 @@ struct BlockedProfileView: View {
                     CustomToggle(
                         title: "Allow Mode",
                         description:
-                            "Pick apps or websites to allow and block everything else. This will earse any other selection you've made.",
+                            "Pick apps or websites to allow and block everything else. This will erase any other selection you've made.",
                         isOn: $enableAllowMode,
                         isDisabled: isBlocking
                     )
