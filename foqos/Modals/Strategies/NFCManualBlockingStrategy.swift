@@ -22,7 +22,7 @@ class NFCManualBlockingStrategy: BlockingStrategy {
     func startBlocking(
         context: ModelContext,
         profile: BlockedProfiles,
-        sessionId: String?
+        forceStart: Bool?
     ) -> (any View)? {
         self.appBlocker
             .activateRestrictions(
@@ -35,8 +35,9 @@ class NFCManualBlockingStrategy: BlockingStrategy {
             BlockedProfileSession
             .createSession(
                 in: context,
-                withTag: sessionId ?? ManualBlockingStrategy.id,
-                withProfile: profile
+                withTag: ManualBlockingStrategy.id,
+                withProfile: profile,
+                forceStart: forceStart ?? false
             )
 
         self.onSessionCreation?(.started(activeSession))

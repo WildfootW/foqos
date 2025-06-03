@@ -2,6 +2,8 @@ import SwiftData
 import SwiftUI
 
 class StrategyManager: ObservableObject {
+    static var shared = StrategyManager()
+
     static let availableStrategies: [BlockingStrategy] = [
         NFCBlockingStrategy(),
         ManualBlockingStrategy(),
@@ -43,6 +45,7 @@ class StrategyManager: ObservableObject {
             startTimer()
 
             // Start live activity for existing session if one exists
+            // live activities can only be started when the app is in the foreground
             if let session = activeSession {
                 liveActivityManager.startSessionActivity(session: session)
             }
@@ -118,9 +121,44 @@ class StrategyManager: ObservableObject {
                 manualStrategy.startBlocking(
                     context: context,
                     profile: profile,
-                    sessionId: url.absoluteString
+                    forceStart: true
                 )
             }
+        } catch {
+            self.errorMessage = "Something went wrong fetching profile"
+        }
+    }
+
+    func startSessionFromBackground(
+        _ profileId: UUID,
+        context: ModelContext
+    ) {
+        do {
+            guard
+                let profile = try BlockedProfiles.findProfile(
+                    byID: profileId,
+                    in: context
+                )
+            else {
+                self.errorMessage =
+                    "Failed to find a profile stored locally that matches the tag"
+                return
+            }
+
+            let manualStrategy = getStrategy(id: ManualBlockingStrategy.id)
+
+            if let localActiveSession = getActiveSession(context: context) {
+                print(
+                    "session is already active for profile: \(localActiveSession.blockedProfile.name), not starting a new one"
+                )
+                return
+            }
+
+            manualStrategy.startBlocking(
+                context: context,
+                profile: profile,
+                forceStart: true
+            )
         } catch {
             self.errorMessage = "Something went wrong fetching profile"
         }
@@ -237,7 +275,7 @@ class StrategyManager: ObservableObject {
             let view = strategy.startBlocking(
                 context: context,
                 profile: definedProfile,
-                sessionId: nil
+                forceStart: false
             )
 
             if let customView = view {
