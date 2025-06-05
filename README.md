@@ -3,12 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://apps.apple.com/ca/app/foqos/id6736793117">
-    <img src="https://img.shields.io/badge/App_Store-000000?style=for-the-badge&logo=app-store&logoColor=white" alt="App Store">
-  </a>
+<a href="https://www.buymeacoffee.com/ambitionsoftware" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/arial-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
 </p>
 
-<h1 align="center">Foqos</h1>
+<h1 align="center"><a href="https://apps.apple.com/ca/app/foqos/id6736793117">Foqos</a></h1>
 
 <p align="center">
   <strong>Focus through physical blocking</strong>
@@ -27,10 +25,6 @@
 - **📊 Habit Tracking**: Visual tracking of your blocked sessions to monitor your focus habits
 - **⏸️ Break Functionality**: Take breaks during blocking sessions when needed
 - **🔄 Live Activities**: Real-time updates on your Lock Screen showing blocking status
-- **🏠 Widgets**: Home Screen widgets to quickly see your blocking status
-- **🔗 Universal Links**: Deep linking support for automation and shortcuts
-- **🌙 Background Tasks**: Continues working even when the app is closed
-- **💡 Smart Strategies**: Multiple blocking strategies to fit your workflow
 
 ## 📋 Requirements
 
@@ -136,7 +130,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [App Store](https://apps.apple.com/ca/app/foqos/id6736793117)
 - [GitHub Issues](https://github.com/awaseem/foqos/issues)
-- [Support the Project](https://apps.apple.com/ca/app/foqos/id6736793117) (via in-app purchases)
+- [Support the Project](https://apps.apple.com/ca/app/foqos/id6736793117) (via in-app purchases or [here](https://coff.ee/ambitionsoftware))
 
 ---
 
