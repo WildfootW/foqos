@@ -3,14 +3,11 @@ import SwiftData
 import SwiftUI
 
 struct HomeView: View {
-    let AMZN_STORE_LINK = "https://amzn.to/4fbMuTM"
-
     @Environment(\.modelContext) private var context
     @Environment(\.openURL) var openURL
 
     @EnvironmentObject var requestAuthorizer: RequestAuthorizer
     @EnvironmentObject var strategyManager: StrategyManager
-    @EnvironmentObject var donationManager: TipManager
     @EnvironmentObject var navigationManager: NavigationManager
     @EnvironmentObject var ratingManager: RatingManager
 
@@ -24,6 +21,9 @@ struct HomeView: View {
 
     // Edit profile
     @State private var profileToEdit: BlockedProfiles? = nil
+
+    // Donation View
+    @State private var showDonationView = false
 
     // Activity sessions
     @Query(sort: \BlockedProfileSession.startTime, order: .reverse) private
@@ -64,10 +64,15 @@ struct HomeView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 30) {
-                Text("Foqos")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .padding(.horizontal, 16)
+                HStack(alignment: .center) {
+                    AppTitle()
+                    Spacer()
+                    RoundedButton("Support", action: {
+                        showDonationView = true
+                    }, iconName: "heart.fill")
+                }
+                .padding(.trailing, 16)
+                .padding(.top, 16)
 
                 if profiles.isEmpty {
                     Welcome(onTap: {
@@ -100,35 +105,12 @@ struct HomeView: View {
                         },
                         onBreakTapped: { _ in
                             strategyManager.toggleBreak()
+                        },
+                        onManageTapped: {
+                            isProfileListPresent = true
                         }
                     )
                 }
-
-                ManageSection(actions: [
-                    ManageAction(
-                        icon: "person.crop.circle.fill",
-                        label: "Profiles",
-                        color: .purple,
-                        action: { isProfileListPresent = true }
-                    ),
-                    ManageAction(
-                        icon: "cart.fill",
-                        label: "Purchase NFC tags",
-                        color: .gray,
-                        action: {
-                            if let url = URL(string: AMZN_STORE_LINK) {
-                                openURL(url)
-                            }
-                        }
-                    ),
-                    ManageAction(
-                        icon: "heart.fill",
-                        label: "Support us",
-                        color: .pink,
-                        action: { donationManager.tip() }
-                    ),
-                ])
-                .padding(.horizontal, 16)
 
                 VersionFooter()
                     .frame(maxWidth: .infinity)
@@ -194,6 +176,9 @@ struct HomeView: View {
             BlockingStrategyActionView(
                 customView: strategyManager.customStrategyView
             )
+        }
+        .sheet(isPresented: $showDonationView) {
+            SupportView()
         }
         .alert(alertTitle, isPresented: $showingAlert) {
             Button("OK", role: .cancel) { dismissAlert() }
