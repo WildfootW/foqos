@@ -208,7 +208,7 @@ struct BlockedProfileView: View {
                         if isBlocking {
                             Text("Disable current session to change")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.red)
                                 .padding(.top, 4)
                         }
                     }
