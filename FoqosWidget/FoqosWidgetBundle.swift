@@ -5,12 +5,12 @@
 //  Created by Ali Waseem on 2025-03-11.
 //
 
-import WidgetKit
 import SwiftUI
+import WidgetKit
 
 @main
 struct FoqosWidgetBundle: WidgetBundle {
-    var body: some Widget {
-        FoqosWidgetLiveActivity()
-    }
+  var body: some Widget {
+    FoqosWidgetLiveActivity()
+  }
 }

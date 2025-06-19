@@ -2,58 +2,58 @@ import SwiftData
 import SwiftUI
 
 class ManualBlockingStrategy: BlockingStrategy {
-    static var id: String = "ManualBlockingStrategy"
+  static var id: String = "ManualBlockingStrategy"
 
-    var name: String = "Manual"
-    var description: String =
-        "Block and unblock profiles manually through the app"
-    var iconType: String = "button.horizontal.top.press.fill"
-    var color: Color = .blue
+  var name: String = "Manual"
+  var description: String =
+    "Block and unblock profiles manually through the app"
+  var iconType: String = "button.horizontal.top.press.fill"
+  var color: Color = .blue
 
-    var onSessionCreation: ((SessionStatus) -> Void)?
-    var onErrorMessage: ((String) -> Void)?
+  var onSessionCreation: ((SessionStatus) -> Void)?
+  var onErrorMessage: ((String) -> Void)?
 
-    private let appBlocker: AppBlockerUtil = AppBlockerUtil()
+  private let appBlocker: AppBlockerUtil = AppBlockerUtil()
 
-    func getIdentifier() -> String {
-        return ManualBlockingStrategy.id
-    }
-    
-    func startBlocking(
-        context: ModelContext,
-        profile: BlockedProfiles,
-        forceStart: Bool?
-    ) -> (any View)? {
-        self.appBlocker
-            .activateRestrictions(
-                selection: profile.selectedActivity,
-                strict: profile.enableStrictMode,
-                allowOnly: profile.enableAllowMode
-            )
+  func getIdentifier() -> String {
+    return ManualBlockingStrategy.id
+  }
 
-        let activeSession =
-            BlockedProfileSession
-            .createSession(
-                in: context,
-                withTag: ManualBlockingStrategy.id,
-                withProfile: profile,
-                forceStart: forceStart ?? false
-            )
+  func startBlocking(
+    context: ModelContext,
+    profile: BlockedProfiles,
+    forceStart: Bool?
+  ) -> (any View)? {
+    self.appBlocker
+      .activateRestrictions(
+        selection: profile.selectedActivity,
+        strict: profile.enableStrictMode,
+        allowOnly: profile.enableAllowMode
+      )
 
-        self.onSessionCreation?(.started(activeSession))
+    let activeSession =
+      BlockedProfileSession
+      .createSession(
+        in: context,
+        withTag: ManualBlockingStrategy.id,
+        withProfile: profile,
+        forceStart: forceStart ?? false
+      )
 
-        return nil
-    }
+    self.onSessionCreation?(.started(activeSession))
 
-    func stopBlocking(
-        context: ModelContext,
-        session: BlockedProfileSession
-    ) -> (any View)? {
-        session.endSession()
-        self.appBlocker.deactivateRestrictions()
+    return nil
+  }
 
-        self.onSessionCreation?(.ended(session.blockedProfile))
+  func stopBlocking(
+    context: ModelContext,
+    session: BlockedProfileSession
+  ) -> (any View)? {
+    session.endSession()
+    self.appBlocker.deactivateRestrictions()
 
-        return nil
-    }
+    self.onSessionCreation?(.ended(session.blockedProfile))
+
+    return nil
+  }
 }
