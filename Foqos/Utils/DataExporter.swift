@@ -19,7 +19,7 @@ struct DataExporter {
     timeZone: DataExportTimeZone = .utc
   ) throws -> String {
     var lines: [String] = [
-      "Id,profile_name,start_time,end_time,break_start_time,break_end_time"
+      "session_id,profile_name,start_time,end_time,break_start_time,break_end_time"
     ]
 
     if profileIDs.isEmpty {
