@@ -19,7 +19,7 @@ struct DataExporter {
     timeZone: DataExportTimeZone = .utc
   ) throws -> String {
     var lines: [String] = [
-      "Id,start_time,end_time,break_start_time,break_end_time"
+      "Id,profile_name,start_time,end_time,break_start_time,break_end_time"
     ]
 
     if profileIDs.isEmpty {
@@ -40,12 +40,13 @@ struct DataExporter {
     lines.reserveCapacity(sessions.count + 1)
     for session in sessions {
       let id = session.id
+      let profileName = session.blockedProfile.name
       let start = dateFormatter.string(from: session.startTime)
       let end = session.endTime.map { dateFormatter.string(from: $0) } ?? ""
       let breakStart = session.breakStartTime.map { dateFormatter.string(from: $0) } ?? ""
       let breakEnd = session.breakEndTime.map { dateFormatter.string(from: $0) } ?? ""
 
-      let row = [id, start, end, breakStart, breakEnd]
+      let row = [id, profileName, start, end, breakStart, breakEnd]
         .map { escapeCSVField($0) }
         .joined(separator: ",")
       lines.append(row)
