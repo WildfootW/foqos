@@ -13,14 +13,16 @@
 </p>
 
 <p align="center">
-  Foqos allows you to lock distracting apps behind the tap of an NFC tag, helping you stay focused and build better digital habits.
+  Foqos allows you to lock distracting apps behind the tap of an NFC tag, helping you stay focused and build better digital habits. Free and open source alternative to Brick, Bloom, Unpluq, Blok and more!
 </p>
 
 ---
 
 ## ✨ Features
 
-- **🏷️ NFC-Based Blocking**: Use NFC tags to start and stop app blocking sessions
+- **🏷️ NFC & QR Blocking**: Use NFC tags or QR codes to start and stop blocking sessions
+- **🧩 Multiple Strategies**: Manual, NFC, QR, NFC + Manual, QR + Manual
+- **🔐 Physical Unblock**: Optionally require a specific NFC tag or QR code to stop blocking
 - **📱 Customizable Profiles**: Create multiple blocking profiles for different scenarios (work, study, sleep, etc.)
 - **📊 Habit Tracking**: Visual tracking of your blocked sessions to monitor your focus habits
 - **⏸️ Break Functionality**: Take breaks during blocking sessions when needed
@@ -70,14 +72,15 @@ open foqos.xcodeproj
 
 ```
 foqos/
-├── Foqos/                    # Main app target
-│   ├── Views/               # SwiftUI views
-│   ├── Modals/              # Data models
-│   ├── Components/          # Reusable UI components
-│   ├── Utils/               # Utility functions
-│   └── Intents/             # App Intents & Shortcuts
-├── FoqosWidget/             # Widget extension
-└── FoqosDeviceMonitor/      # Device monitoring extension
+├── Foqos/                     # Main app target
+│   ├── Views/                 # SwiftUI views
+│   ├── Models/                # Data models
+│   │   └── Strategies/        # Blocking strategies
+│   ├── Components/            # Reusable UI components
+│   ├── Utils/                 # Utility functions
+│   └── Intents/               # App Intents & Shortcuts
+├── FoqosWidget/               # Widget extension
+└── FoqosDeviceMonitor/        # Device monitoring extension
 ```
 
 ### Key Technologies Used
@@ -86,10 +89,47 @@ foqos/
 - **SwiftData** - Local data persistence
 - **Family Controls** - App blocking functionality
 - **Core NFC** - NFC tag reading/writing
+- **CodeScanner** - QR code scanning
 - **BackgroundTasks** - Background processing
 - **Live Activities** - Dynamic Island and Lock Screen updates
 - **WidgetKit** - Home Screen widgets
 - **App Intents** - Shortcuts and automation support
+
+## 🔒 Blocking Strategies
+
+All strategies live under `Foqos/Models/Strategies/` and are orchestrated via `Foqos/Utils/StrategyManager.swift`.
+
+- **NFC Tags (`NFCBlockingStrategy`)**
+
+  - Start: scan any NFC tag to start the selected profile
+  - Stop: scan the same tag to stop the session
+  - **Physical Unblock (optional)**: set `physicalUnblockNFCTagId` on a profile to require that exact tag to stop (ignores the session’s start tag)
+
+- **QR Codes (`QRCodeBlockingStrategy`)**
+
+  - Start: scan any QR code to start the selected profile
+  - Stop: scan the same QR code to stop the session
+  - **Physical Unblock (optional)**: set `physicalUnblockQRCodeId` on a profile to require that exact code to stop (ignores the session’s start code)
+  - The app can display/share a QR representing the profile’s deep link using `QRCodeView`
+
+- **Manual (`ManualBlockingStrategy`)**
+
+  - Start/Stop entirely from within the app (no external tag/code required)
+
+- **NFC + Manual (`NFCManualBlockingStrategy`)**
+
+  - Start: manually from within the app
+  - Stop: scan any NFC tag (restricted to `physicalUnblockNFCTagId` if set)
+
+- **QR + Manual (`QRManualBlockingStrategy`)**
+  - Start: manually from within the app
+  - Stop: scan any QR code (restricted to `physicalUnblockQRCodeId` if set)
+
+### QR deep links
+
+- Each profile exposes a deep link via `BlockedProfiles.getProfileDeepLink(profile)` in the form:
+  - `https://foqos.app/profile/<PROFILE_UUID>`
+- Scanning a QR that encodes this deep link will toggle the profile: if inactive it starts, if active it stops. This works even if the app isn’t already open (it will be launched via the link).
 
 ## 🤝 Contributing
 
