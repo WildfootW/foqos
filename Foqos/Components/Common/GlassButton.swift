@@ -27,8 +27,6 @@ struct GlassButton: View {
   }
 
   @State private var isPressed = false
-  @State private var progress: CGFloat = 0.0
-  @State private var touchStartLocation: CGPoint = .zero
 
   private var longPressButton: some View {
     buttonContent
@@ -36,57 +34,18 @@ struct GlassButton: View {
       .frame(minWidth: 0, maxWidth: equalWidth ? .infinity : nil)
       .scaleEffect(isPressed ? 0.96 : 1.0)
       .animation(.spring(response: 0.3), value: isPressed)
-      .simultaneousGesture(
-        DragGesture(minimumDistance: 0)
-          .onChanged { value in
-            if progress == 0.0 {  // capture where the touch started
-              touchStartLocation = value.startLocation
-            }
-          }
-      )
       .onLongPressGesture(
         minimumDuration: longPressDuration,
-        maximumDistance: 50,
         pressing: { pressing in
-          if pressing {
-            isPressed = true
-            withAnimation(.linear(duration: longPressDuration)) {
-              progress = 1.0
-            }
-          } else {
-            isPressed = false
-            withAnimation(.easeOut(duration: 0.2)) {
-              progress = 0.0
-            }
-          }
+          isPressed = pressing
         },
         perform: {
           UIImpactFeedbackGenerator(style: .medium).impactOccurred()
           action()
           isPressed = false
-          progress = 0.0
         }
       )
-      .overlay(
-        ZStack {
-          if isPressed {
-            GeometryReader { geometry in
-              Circle()
-                .fill(Color.primary.opacity(0.1))
-                .frame(
-                  width: geometry.size.width * progress * 2,
-                  height: geometry.size.width * progress * 2
-                )
-                .position(
-                  x: touchStartLocation.x,
-                  y: touchStartLocation.y
-                )
-            }
-          }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .scaleEffect(0.95)
-      )
+
   }
 
   private var buttonContent: some View {
