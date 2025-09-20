@@ -4,106 +4,75 @@ import SwiftUI
 struct BlockedSessionsHabitTracker: View {
   let sessions: [BlockedProfileSession]
   @State private var selectedDate: Date?
-  @State private var selectedSessions: [DailySessionData] = []
+  @State private var selectedSessions: [BlockedProfileSession] = []
   @State private var showingSessionDetails = false
   @AppStorage("showHabitTracker") private var showHabitTracker = true
 
   // Number of days to show in the tracker
   private let daysToShow = 28  // 4 weeks (7 days x 4)
 
-  // Represents a session's data for a specific day
-  struct DailySessionData: Equatable {
-    let session: BlockedProfileSession
-    let date: Date
-    let duration: TimeInterval
-    let isFullSession: Bool // true if the entire session occurred on this day
-    
-    static func == (lhs: DailySessionData, rhs: DailySessionData) -> Bool {
-      return lhs.session.id == rhs.session.id &&
-             lhs.date == rhs.date &&
-             lhs.duration == rhs.duration &&
-             lhs.isFullSession == rhs.isFullSession
-    }
-  }
-
-  private var sessionsByDay: [Date: [DailySessionData]] {
-    return distributeSessionsAcrossDays()
-  }
+  // MARK: - Lazy Multi-Day Session Support
   
-  private func distributeSessionsAcrossDays() -> [Date: [DailySessionData]] {
+  /// Calculates total session hours for a specific date by checking overlap with all sessions
+  private func sessionHoursForDate(_ date: Date) -> Double {
     let calendar = Calendar.current
-    var result: [Date: [DailySessionData]] = [:]
+    let dayStart = calendar.startOfDay(for: date)
+    guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return 0 }
     
-    for session in sessions {
-      let sessionData = createDailySessionData(for: session, calendar: calendar)
+    let totalSeconds = sessions.reduce(0.0) { total, session in
+      // Calculate overlap between session and this specific day
+      let sessionStart = session.startTime
+      let sessionEnd = session.endTime ?? Date()
       
-      for dailyData in sessionData {
-        result[dailyData.date, default: []].append(dailyData)
-      }
+      // Find intersection between session time range and day time range
+      let overlapStart = max(sessionStart, dayStart)
+      let overlapEnd = min(sessionEnd, dayEnd)
+      
+      // Only count positive overlap
+      let overlapDuration = max(0, overlapEnd.timeIntervalSince(overlapStart))
+      return total + overlapDuration
     }
     
-    return result
+    return totalSeconds / 3600 // Convert to hours
   }
   
-  private func createDailySessionData(for session: BlockedProfileSession, calendar: Calendar) -> [DailySessionData] {
-    guard let endTime = session.endTime else {
-      // For active sessions, only count on start day
-      let startDay = calendar.startOfDay(for: session.startTime)
-      let dailyData = DailySessionData(
-        session: session,
-        date: startDay,
-        duration: session.duration,
-        isFullSession: true
-      )
-      return [dailyData]
-    }
+  /// Gets sessions that have any overlap with the specified date
+  private func sessionsForDate(_ date: Date) -> [BlockedProfileSession] {
+    let calendar = Calendar.current
+    let dayStart = calendar.startOfDay(for: date)
+    guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return [] }
     
+    return sessions.filter { session in
+      let sessionStart = session.startTime
+      let sessionEnd = session.endTime ?? Date()
+      
+      // Check if session overlaps with this day
+      return sessionStart < dayEnd && sessionEnd > dayStart
+    }.sorted { $0.duration > $1.duration }
+  }
+  
+  /// Determines if a session spans multiple days (for display purposes)
+  private func isMultiDaySession(_ session: BlockedProfileSession) -> Bool {
+    guard let endTime = session.endTime else { return false }
+    let calendar = Calendar.current
     let startDay = calendar.startOfDay(for: session.startTime)
     let endDay = calendar.startOfDay(for: endTime)
-    
-    // If session is within a single day
-    if startDay == endDay {
-      let dailyData = DailySessionData(
-        session: session,
-        date: startDay,
-        duration: session.duration,
-        isFullSession: true
-      )
-      return [dailyData]
-    }
-    
-    // Multi-day session - distribute across days
-    return createMultiDaySessionData(session: session, startDay: startDay, endDay: endDay, endTime: endTime, calendar: calendar)
+    return startDay != endDay
   }
   
-  private func createMultiDaySessionData(session: BlockedProfileSession, startDay: Date, endDay: Date, endTime: Date, calendar: Calendar) -> [DailySessionData] {
-    var result: [DailySessionData] = []
-    var currentDay = startDay
+  /// Calculates how much of a session occurred on a specific date
+  private func sessionDurationForDate(_ session: BlockedProfileSession, date: Date) -> TimeInterval {
+    let calendar = Calendar.current
+    let dayStart = calendar.startOfDay(for: date)
+    guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return 0 }
     
-    while currentDay <= endDay {
-      let dayStart = currentDay
-      guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
-      
-      // Calculate the portion of the session that occurred on this day
-      let sessionStart = max(session.startTime, dayStart)
-      let sessionEnd = min(endTime, dayEnd)
-      let dailyDuration = sessionEnd.timeIntervalSince(sessionStart)
-      
-      if dailyDuration > 0 {
-        let dailyData = DailySessionData(
-          session: session,
-          date: currentDay,
-          duration: dailyDuration,
-          isFullSession: false
-        )
-        result.append(dailyData)
-      }
-      
-      guard let nextDay = calendar.date(byAdding: .day, value: 1, to: currentDay) else { break }
-      currentDay = nextDay
-    }
+    let sessionStart = session.startTime
+    let sessionEnd = session.endTime ?? Date()
     
-    return result
+    let overlapStart = max(sessionStart, dayStart)
+    let overlapEnd = min(sessionEnd, dayEnd)
+    
+    return max(0, overlapEnd.timeIntervalSince(overlapStart))
   }
 
   private func dates() -> [Date] {
@@ -115,11 +84,6 @@ struct BlockedSessionsHabitTracker: View {
     }.reversed()
   }
 
-  private func sessionHoursForDate(_ date: Date) -> Double {
-    let sessionsForDay = sessionsByDay[date, default: []]
-    let totalDuration = sessionsForDay.reduce(0) { $0 + $1.duration }
-    return totalDuration / 3600
-  }
 
   private func colorForHours(_ hours: Double) -> Color {
     switch hours {
@@ -173,8 +137,7 @@ struct BlockedSessionsHabitTracker: View {
     } else {
       // Select a new date
       selectedDate = date
-      selectedSessions = sessionsByDay[date, default: []]
-        .sorted { $0.duration > $1.duration }
+      selectedSessions = sessionsForDate(date)
       showingSessionDetails = true
     }
   }
@@ -246,7 +209,7 @@ struct BlockedSessionsHabitTracker: View {
           .font(.caption)
           .foregroundColor(.secondary)
       } else {
-        sessionListView()
+        sessionListView(for: date)
       }
     }
     .padding(.top, 8)
@@ -254,14 +217,14 @@ struct BlockedSessionsHabitTracker: View {
     .animation(.easeInOut, value: showingSessionDetails)
   }
   
-  private func sessionListView() -> some View {
+  private func sessionListView(for date: Date) -> some View {
     VStack(alignment: .leading, spacing: 8) {
       let displayedSessions = Array(selectedSessions.prefix(3))
       
-      ForEach(displayedSessions, id: \.session.id) { dailyData in
-        sessionRowView(for: dailyData)
+      ForEach(displayedSessions, id: \.id) { session in
+        sessionRowView(for: session, on: date)
         
-        if dailyData != displayedSessions.last {
+        if session != displayedSessions.last {
           Divider()
         }
       }
@@ -275,15 +238,18 @@ struct BlockedSessionsHabitTracker: View {
     }
   }
   
-  private func sessionRowView(for dailyData: DailySessionData) -> some View {
-    HStack {
+  private func sessionRowView(for session: BlockedProfileSession, on date: Date) -> some View {
+    let dailyDuration = sessionDurationForDate(session, date: date)
+    let isMultiDay = isMultiDaySession(session)
+    
+    return HStack {
       VStack(alignment: .leading, spacing: 2) {
-        Text(dailyData.session.blockedProfile.name)
+        Text(session.blockedProfile.name)
           .font(.subheadline)
           .foregroundColor(.primary)
         
-        if !dailyData.isFullSession {
-          Text("(partial session)")
+        if isMultiDay {
+          Text("(spans multiple days)")
             .font(.caption2)
             .foregroundColor(.secondary)
         }
@@ -291,7 +257,7 @@ struct BlockedSessionsHabitTracker: View {
       
       Spacer()
       
-      Text(String(format: "%.1f hrs", dailyData.duration / 3600))
+      Text(String(format: "%.1f hrs", dailyDuration / 3600))
         .font(.subheadline)
         .fontWeight(.medium)
         .foregroundColor(.secondary)
