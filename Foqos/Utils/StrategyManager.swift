@@ -487,7 +487,7 @@ class StrategyManager: ObservableObject {
     timersUtil
       .scheduleNotification(
         title: profileName + " time!",
-        message: profile.customReminderMessage ?? defaultReminderMessage(forProfile: profile),
+        message: profile.customReminderMessage.isEmpty ? defaultReminderMessage(forProfile: profile) : profile.customReminderMessage,
         seconds: TimeInterval(reminderTimeInSeconds)
       )
   }

@@ -19,7 +19,7 @@ struct BlockedProfileView: View {
   @State private var enableBreaks: Bool = false
   @State private var enableStrictMode: Bool = false
   @State private var reminderTimeInMinutes: Int = 15
-  @State private var customReminderMessage: String?
+  @State private var customReminderMessage: String
   @State private var enableAllowMode: Bool = false
   @State private var enableAllowModeDomain: Bool = false
   @State private var disableBackgroundStops: Bool = false
@@ -102,7 +102,7 @@ struct BlockedProfileView: View {
       initialValue: Int(profile?.reminderTimeInSeconds ?? 900) / 60
     )
     _customReminderMessage = State(
-      initialValue: profile?.customReminderMessage
+      initialValue: profile?.customReminderMessage ?? ""
     )
     _domains = State(
       initialValue: profile?.domains ?? []
@@ -292,10 +292,7 @@ struct BlockedProfileView: View {
               Text("Reminder message")
               TextField(
                 "Reminder message", // TextField title used for accessibility/VoiceOver
-                text: Binding(
-                  get: { customReminderMessage ?? "" }, // binding allows nil to represent default message
-                  set: { customReminderMessage = $0.isEmpty ? nil : $0 } // the question is: why not have an empty string represent default? why nil?
-                ),
+                text: $customReminderMessage,
                 prompt: Text(strategyManager.defaultReminderMessage(forProfile: profile))
               )
               .disabled(isBlocking)
@@ -306,10 +303,10 @@ struct BlockedProfileView: View {
 
               // Add a text field clear button unless the message is empty, nil or notifications are blocked
               if isReminderMessageTextFieldFocused &&
-                  !(customReminderMessage ?? "").isEmpty &&
+                  !customReminderMessage.isEmpty &&
                   !isBlocking {
                 Button {
-                  customReminderMessage = nil
+                  customReminderMessage = ""
                 } label: {
                   Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.secondary)
