@@ -59,8 +59,6 @@ struct BlockedProfileView: View {
   @State private var selectedActivity = FamilyActivitySelection()
   @State private var selectedStrategy: BlockingStrategy? = nil
 
-  @FocusState private var isReminderMessageTextFieldFocused: Bool
-
   private let physicalReader: PhysicalReader = PhysicalReader()
 
   private var isEditing: Bool {
@@ -287,32 +285,21 @@ struct BlockedProfileView: View {
               Text("minutes")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-            }
-            HStack {
+            }.listRowSeparator(.visible)
+            VStack(alignment: .leading) {
               Text("Reminder message")
               TextField(
-                "Reminder message",  // TextField title used for accessibility/VoiceOver
+                "Reminder message",
                 text: $customReminderMessage,
-                prompt: Text(strategyManager.defaultReminderMessage(forProfile: profile))
+                prompt: Text(strategyManager.defaultReminderMessage(forProfile: profile)),
+                axis: .vertical
               )
-              .disabled(isBlocking)
-              .font(.subheadline)
               .foregroundColor(.secondary)
-              .multilineTextAlignment(.trailing)
-              .focused($isReminderMessageTextFieldFocused)  // field focus flag set to show/hide the clear button
-
-              // Add a text field clear button unless the message is empty, nil or notifications are blocked
-              if isReminderMessageTextFieldFocused && !customReminderMessage.isEmpty && !isBlocking
-              {
-                Button {
-                  customReminderMessage = ""
-                } label: {
-                  Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
+              .lineLimit(...3)
+              .onChange(of: customReminderMessage) { _, newValue in
+                if newValue.count > 178 {
+                  customReminderMessage = String(newValue.prefix(178))
                 }
-                .buttonStyle(.plain)
-                .padding(.leading, 4)
-                .accessibilityLabel("Clear reminder message")
               }
             }
           }
