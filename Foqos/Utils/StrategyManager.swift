@@ -42,7 +42,7 @@ class StrategyManager: ObservableObject {
 
   func defaultReminderMessage(forProfile profile: BlockedProfiles?) -> String {
     let baseMessage = "Get back to productivity"
-    guard let profile, !profile.isDeleted else {
+    guard let profile else {
       return baseMessage
     }
     return baseMessage + " by enabling \(profile.name)"
