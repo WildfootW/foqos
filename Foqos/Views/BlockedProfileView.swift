@@ -59,7 +59,7 @@ struct BlockedProfileView: View {
   @State private var selectedActivity = FamilyActivitySelection()
   @State private var selectedStrategy: BlockingStrategy? = nil
 
-  @FocusState private var isReminderMessageTextFieldFocused: Bool // flag to decide whether to show or hide text field clear button
+  @FocusState private var isReminderMessageTextFieldFocused: Bool  // flag to decide whether to show or hide text field clear button
 
   private let physicalReader: PhysicalReader = PhysicalReader()
 
@@ -291,7 +291,7 @@ struct BlockedProfileView: View {
             HStack {
               Text("Reminder message")
               TextField(
-                "Reminder message", // TextField title used for accessibility/VoiceOver
+                "Reminder message",  // TextField title used for accessibility/VoiceOver
                 text: $customReminderMessage,
                 prompt: Text(strategyManager.defaultReminderMessage(forProfile: profile))
               )
@@ -299,12 +299,11 @@ struct BlockedProfileView: View {
               .font(.subheadline)
               .foregroundColor(.secondary)
               .multilineTextAlignment(.trailing)
-              .focused($isReminderMessageTextFieldFocused) // field focus flag set to show/hide the clear button
+              .focused($isReminderMessageTextFieldFocused)  // field focus flag set to show/hide the clear button
 
               // Add a text field clear button unless the message is empty, nil or notifications are blocked
-              if isReminderMessageTextFieldFocused &&
-                  !customReminderMessage.isEmpty &&
-                  !isBlocking {
+              if isReminderMessageTextFieldFocused && !customReminderMessage.isEmpty && !isBlocking
+              {
                 Button {
                   customReminderMessage = ""
                 } label: {
