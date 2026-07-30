@@ -23,6 +23,9 @@ final class BlockedProfileDraft: ObservableObject {
   @Published var domains: [String]
   @Published var physicalUnblockItems: [PhysicalUnblockItem]
   @Published var schedule: BlockedProfileSchedule
+  @Published var enableUsageLimit: Bool
+  @Published var usageLimitDailyMinutes: Int
+  @Published var usageLimitUnlockMinutes: Int
   @Published var selectedActivity: FamilyActivitySelection
   @Published var selectedStrategy: BlockingStrategy? {
     didSet {
@@ -50,6 +53,13 @@ final class BlockedProfileDraft: ObservableObject {
     customReminderMessage = profile?.customReminderMessage ?? ""
     domains = profile?.domains ?? []
     physicalUnblockItems = profile?.physicalUnblockItems ?? []
+    enableUsageLimit = profile?.usageLimit?.isEnabled ?? false
+    usageLimitDailyMinutes =
+      profile?.usageLimit?.dailyLimitInMinutes
+      ?? UsageLimitSettings.defaultDailyLimitInMinutes
+    usageLimitUnlockMinutes =
+      profile?.usageLimit?.unlockDurationInMinutes
+      ?? UsageLimitSettings.defaultUnlockDurationInMinutes
     schedule =
       profile?.schedule
       ?? BlockedProfileSchedule(
@@ -89,6 +99,14 @@ final class BlockedProfileDraft: ObservableObject {
     let physicalUnblockItemsToSave: [PhysicalUnblockItem]? =
       physicalUnblockItems.isEmpty ? nil : physicalUnblockItems
     let enableTimedBreaksToSave = selectedStrategyAllowsTimedBreaks && enableBreaks
+    let usageLimitToSave: UsageLimitSettings? =
+      (enableUsageLimit && !enableAllowMode)
+      ? UsageLimitSettings(
+        isEnabled: true,
+        dailyLimitInMinutes: usageLimitDailyMinutes,
+        unlockDurationInMinutes: usageLimitUnlockMinutes
+      )
+      : nil
 
     if let existingProfile {
       let updatedProfile = try BlockedProfiles.updateProfile(
@@ -113,10 +131,12 @@ final class BlockedProfileDraft: ObservableObject {
         physicalUnblockItems: .some(physicalUnblockItemsToSave),
         schedule: schedule,
         disableBackgroundStops: disableBackgroundStops,
-        enableEmergencyUnblock: enableEmergencyUnblock
+        enableEmergencyUnblock: enableEmergencyUnblock,
+        usageLimit: .some(usageLimitToSave)
       )
 
       DeviceActivityCenterUtil.scheduleTimerActivity(for: updatedProfile)
+      UsageLimitScheduler.sync(for: updatedProfile)
       return updatedProfile
     }
 
@@ -141,10 +161,12 @@ final class BlockedProfileDraft: ObservableObject {
       physicalUnblockItems: physicalUnblockItemsToSave,
       schedule: schedule,
       disableBackgroundStops: disableBackgroundStops,
-      enableEmergencyUnblock: enableEmergencyUnblock
+      enableEmergencyUnblock: enableEmergencyUnblock,
+      usageLimit: usageLimitToSave
     )
 
     DeviceActivityCenterUtil.scheduleTimerActivity(for: newProfile)
+    UsageLimitScheduler.sync(for: newProfile)
     return newProfile
   }
 

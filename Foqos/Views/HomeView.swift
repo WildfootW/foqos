@@ -89,6 +89,10 @@ struct HomeView: View {
     return !isBlocking
   }
 
+  private var usageLimitProfiles: [BlockedProfiles] {
+    return profiles.filter { $0.usageLimit?.isEnabled == true }
+  }
+
   var body: some View {
     ScrollView(showsIndicators: false) {
       VStack(alignment: .leading, spacing: 30) {
@@ -134,6 +138,11 @@ struct HomeView: View {
             }
           )
           .padding(.horizontal, 16)
+        }
+
+        if !usageLimitProfiles.isEmpty {
+          UsageLimitHomeSection(profiles: usageLimitProfiles)
+            .padding(.horizontal, 16)
         }
 
         if !profiles.isEmpty {
@@ -373,12 +382,14 @@ struct HomeView: View {
 
   private func loadApp() {
     strategyManager.loadActiveSession(context: context)
+    UsageLimitScheduler.syncAll(profiles: profiles)
   }
 
   private func onAppearApp() {
     requestAuthorizer.refreshAuthorizationStatus()
     strategyManager.loadActiveSession(context: context)
     strategyManager.cleanUpGhostSchedules(context: context)
+    UsageLimitScheduler.syncAll(profiles: profiles)
     refreshAlerts()
   }
 

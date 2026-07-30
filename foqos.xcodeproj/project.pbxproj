@@ -128,6 +128,7 @@
 				Models/Schedule.swift,
 				Models/Shared.swift,
 				Models/SoftUnblockGrant.swift,
+				Models/UsageLimitSettings.swift,
 				Utils/AppBlockerUtil.swift,
 				Utils/SoftUnblockGrantStore.swift,
 			);
@@ -140,8 +141,10 @@
 				Models/Schedule.swift,
 				Models/Shared.swift,
 				Models/SoftUnblockGrant.swift,
+				Models/UsageLimitSettings.swift,
 				Models/Strategies/Data/SoftUnblockStrategyData.swift,
 				Utils/SoftUnblockGrantStore.swift,
+				Utils/UsageLimitState.swift,
 				Utils/ThemeManager.swift,
 			);
 			target = 808A3C492E4ACD18002A7812 /* FoqosShieldConfig */;
@@ -153,6 +156,7 @@
 				Models/Schedule.swift,
 				Models/Shared.swift,
 				Models/SoftUnblockGrant.swift,
+				Models/UsageLimitSettings.swift,
 				Models/Timers/BreakTimerActivity.swift,
 				Models/Timers/PauseTimerActivity.swift,
 				Models/Timers/ScheduleTimerActivity.swift,
@@ -160,9 +164,11 @@
 				Models/Timers/StrategyTimerActivity.swift,
 				Models/Timers/TimerActivity.swift,
 				Models/Timers/TimerActivityUtil.swift,
+				Models/Timers/UsageLimitTimerActivity.swift,
 				Utils/AppBlockerUtil.swift,
 				Utils/SoftUnblockGrantScheduler.swift,
 				Utils/SoftUnblockGrantStore.swift,
+				Utils/UsageLimitState.swift,
 			);
 			target = 801713092DE6C78C00B77FE1 /* FoqosDeviceMonitor */;
 		};
@@ -201,6 +207,7 @@
 				Models/Schedule.swift,
 				Models/Shared.swift,
 				Models/SoftUnblockGrant.swift,
+				Models/UsageLimitSettings.swift,
 				Models/Strategies/Data/SoftUnblockStrategyData.swift,
 				Utils/AppBlockerUtil.swift,
 				Utils/SoftUnblockGrantScheduler.swift,

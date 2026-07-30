@@ -36,4 +36,15 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     log.info("intervalDidEnd for activity: \(activity.rawValue)")
     TimerActivityUtil.stopTimerActivity(for: activity)
   }
+
+  override func eventDidReachThreshold(
+    _ event: DeviceActivityEvent.Name,
+    activity: DeviceActivityName
+  ) {
+    super.eventDidReachThreshold(event, activity: activity)
+
+    log.info(
+      "eventDidReachThreshold \(event.rawValue) for activity: \(activity.rawValue)")
+    TimerActivityUtil.handleThresholdEvent(event, activity: activity)
+  }
 }
