@@ -5,6 +5,7 @@
 //  Created by Ali Waseem on 2025-08-11.
 //
 
+import FamilyControls
 import ManagedSettings
 import ManagedSettingsUI
 import SwiftUI
@@ -15,6 +16,12 @@ import UIKit
 // Make sure that your class name matches the NSExtensionPrincipalClass in your Info.plist.
 class ShieldConfigurationExtension: ShieldConfigurationDataSource {
   override func configuration(shielding application: Application) -> ShieldConfiguration {
+    if let usageLimitConfiguration = usageLimitConfiguration(
+      applicationToken: application.token, categoryToken: nil, webDomainToken: nil)
+    {
+      return usageLimitConfiguration
+    }
+
     if let softUnblockConfiguration = softUnblockConfiguration(for: application, in: nil) {
       return softUnblockConfiguration
     }
@@ -26,6 +33,12 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
   override func configuration(shielding application: Application, in category: ActivityCategory)
     -> ShieldConfiguration
   {
+    if let usageLimitConfiguration = usageLimitConfiguration(
+      applicationToken: application.token, categoryToken: category.token, webDomainToken: nil)
+    {
+      return usageLimitConfiguration
+    }
+
     if let softUnblockConfiguration = softUnblockConfiguration(for: application, in: category) {
       return softUnblockConfiguration
     }
@@ -35,13 +48,77 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
   }
 
   override func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration {
+    if let usageLimitConfiguration = usageLimitConfiguration(
+      applicationToken: nil, categoryToken: nil, webDomainToken: webDomain.token)
+    {
+      return usageLimitConfiguration
+    }
+
     return createCustomShieldConfiguration(for: .website, title: webDomain.domain ?? "Website")
   }
 
   override func configuration(shielding webDomain: WebDomain, in category: ActivityCategory)
     -> ShieldConfiguration
   {
+    if let usageLimitConfiguration = usageLimitConfiguration(
+      applicationToken: nil, categoryToken: category.token, webDomainToken: webDomain.token)
+    {
+      return usageLimitConfiguration
+    }
+
     return createCustomShieldConfiguration(for: .website, title: webDomain.domain ?? "Website")
+  }
+
+  private func usageLimitConfiguration(
+    applicationToken: ApplicationToken?,
+    categoryToken: ActivityCategoryToken?,
+    webDomainToken: WebDomainToken?
+  ) -> ShieldConfiguration? {
+    for snapshot in SharedData.profileSnapshots.values {
+      guard let settings = snapshot.usageLimit,
+        settings.isEnabled,
+        UsageLimitState.isLockedToday(profileId: snapshot.id),
+        !UsageLimitState.hasActiveGrant(profileId: snapshot.id)
+      else { continue }
+
+      let selection = snapshot.selectedActivity
+      let matchesApplication =
+        applicationToken.map { selection.applicationTokens.contains($0) } ?? false
+      let matchesCategory =
+        categoryToken.map { selection.categoryTokens.contains($0) } ?? false
+      let matchesWebDomain =
+        webDomainToken.map { selection.webDomainTokens.contains($0) } ?? false
+
+      guard matchesApplication || matchesCategory || matchesWebDomain else { continue }
+
+      let minutes = settings.unlockDurationInMinutes
+      let subtitle =
+        "\(snapshot.name): today's allowance is used up.\n"
+        + "Open Foqos and scan this profile's unlock tag or QR code "
+        + "to open for \(minutes) more minute\(minutes == 1 ? "" : "s")."
+
+      return ShieldConfiguration(
+        backgroundBlurStyle: .dark,
+        backgroundColor: UIColor(ThemeManager.shared.themeColor),
+        icon: makeEmojiIcon("⏳", size: 96),
+        title: ShieldConfiguration.Label(
+          text: "Daily limit reached",
+          color: .white
+        ),
+        subtitle: ShieldConfiguration.Label(
+          text: subtitle,
+          color: UIColor.white.withAlphaComponent(0.88)
+        ),
+        primaryButtonLabel: ShieldConfiguration.Label(
+          text: "OK",
+          color: .black
+        ),
+        primaryButtonBackgroundColor: .white,
+        secondaryButtonLabel: nil
+      )
+    }
+
+    return nil
   }
 
   private func createCustomShieldConfiguration(for type: BlockedContentType, title: String)

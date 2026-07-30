@@ -109,6 +109,8 @@ struct BlockedProfileView: View {
 
         BlockedProfileStrictUnlocksSection(draft: draft, disabled: isBlocking)
 
+        BlockedProfileUsageLimitSection(draft: draft, disabled: isBlocking)
+
         BlockedProfileScheduleSection(
           draft: draft,
           showingSchedulePicker: $showingSchedulePicker,

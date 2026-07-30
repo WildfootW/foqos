@@ -51,6 +51,8 @@ class BlockedProfiles {
 
   var customReminderMessage: String?
 
+  var usageLimit: UsageLimitSettings? = nil
+
   @Relationship var sessions: [BlockedProfileSession] = []
 
   var activeScheduleTimerActivity: DeviceActivityName? {
@@ -117,7 +119,8 @@ class BlockedProfiles {
     physicalUnblockItems: [PhysicalUnblockItem]? = nil,
     schedule: BlockedProfileSchedule? = nil,
     disableBackgroundStops: Bool = false,
-    enableEmergencyUnblock: Bool = true
+    enableEmergencyUnblock: Bool = true,
+    usageLimit: UsageLimitSettings? = nil
   ) {
     self.id = id
     self.name = name
@@ -148,6 +151,7 @@ class BlockedProfiles {
 
     self.disableBackgroundStops = disableBackgroundStops
     self.enableEmergencyUnblock = enableEmergencyUnblock
+    self.usageLimit = usageLimit
   }
 
   func showStopButton(elapsedTime: TimeInterval) -> Bool {
@@ -216,7 +220,8 @@ class BlockedProfiles {
     physicalUnblockItems: [PhysicalUnblockItem]?? = nil,
     schedule: BlockedProfileSchedule? = nil,
     disableBackgroundStops: Bool? = nil,
-    enableEmergencyUnblock: Bool? = nil
+    enableEmergencyUnblock: Bool? = nil,
+    usageLimit: UsageLimitSettings?? = nil
   ) throws -> BlockedProfiles {
     if let newName = name {
       profile.name = newName
@@ -313,6 +318,10 @@ class BlockedProfiles {
       profile.physicalUnblockItems = PhysicalUnblockItem.normalizedItems(physicalUnblockItems)
     }
 
+    if let usageLimit {
+      profile.usageLimit = usageLimit
+    }
+
     profile.reminderTimeInSeconds = reminderTime
     profile.customReminderMessage = customReminderMessage
     profile.updatedAt = Date()
@@ -346,6 +355,9 @@ class BlockedProfiles {
 
     // Remove the schedule restrictions
     DeviceActivityCenterUtil.removeScheduleTimerActivities(for: profile)
+
+    // Remove any usage limit monitoring and shields
+    UsageLimitScheduler.teardown(profileId: profile.id)
 
     // Then delete the profile
     context.delete(profile)
@@ -384,7 +396,8 @@ class BlockedProfiles {
       physicalUnblockItems: profile.physicalUnblockItems,
       schedule: profile.schedule,
       disableBackgroundStops: profile.disableBackgroundStops,
-      enableEmergencyUnblock: profile.enableEmergencyUnblock
+      enableEmergencyUnblock: profile.enableEmergencyUnblock,
+      usageLimit: profile.usageLimit
     )
   }
 
@@ -440,7 +453,8 @@ class BlockedProfiles {
     physicalUnblockItems: [PhysicalUnblockItem]? = nil,
     schedule: BlockedProfileSchedule? = nil,
     disableBackgroundStops: Bool = false,
-    enableEmergencyUnblock: Bool = true
+    enableEmergencyUnblock: Bool = true,
+    usageLimit: UsageLimitSettings? = nil
   ) throws -> BlockedProfiles {
     let profileOrder = getNextOrder(in: context)
 
@@ -465,7 +479,8 @@ class BlockedProfiles {
       domains: domains,
       physicalUnblockItems: physicalUnblockItems,
       disableBackgroundStops: disableBackgroundStops,
-      enableEmergencyUnblock: enableEmergencyUnblock
+      enableEmergencyUnblock: enableEmergencyUnblock,
+      usageLimit: usageLimit
     )
 
     if let schedule = schedule {
@@ -507,7 +522,8 @@ class BlockedProfiles {
       domains: source.domains,
       physicalUnblockItems: source.physicalUnblockItems,
       schedule: source.schedule,
-      enableEmergencyUnblock: source.enableEmergencyUnblock
+      enableEmergencyUnblock: source.enableEmergencyUnblock,
+      usageLimit: source.usageLimit
     )
 
     context.insert(cloned)

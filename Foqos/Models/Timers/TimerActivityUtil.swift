@@ -41,6 +41,22 @@ class TimerActivityUtil {
     return (deviceActivityId: ScheduleTimerActivity.id, profileId: activityName)
   }
 
+  static func handleThresholdEvent(
+    _ event: DeviceActivityEvent.Name,
+    activity: DeviceActivityName
+  ) {
+    let parts = getTimerParts(from: activity)
+
+    guard parts.deviceActivityId == UsageLimitDailyTimerActivity.id,
+      event == UsageLimitDailyTimerActivity.thresholdEventName,
+      let profile = getProfile(for: parts.profileId)
+    else {
+      return
+    }
+
+    UsageLimitDailyTimerActivity().lock(for: profile)
+  }
+
   private static func getTimerActivity(for deviceActivityId: String) -> TimerActivity? {
     switch deviceActivityId {
     case ScheduleTimerActivity.id:
@@ -53,6 +69,10 @@ class TimerActivityUtil {
       return PauseTimerActivity()
     case SoftUnblockGrantTimerActivity.id:
       return SoftUnblockGrantTimerActivity()
+    case UsageLimitDailyTimerActivity.id:
+      return UsageLimitDailyTimerActivity()
+    case UsageLimitRelockTimerActivity.id:
+      return UsageLimitRelockTimerActivity()
     default:
       return nil
     }
