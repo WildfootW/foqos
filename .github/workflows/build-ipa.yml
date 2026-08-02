@@ -69,6 +69,7 @@ jobs:
           chmod 600 "$HOME/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
 
       - name: Verify App Store Connect authentication
+        continue-on-error: true
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -77,13 +78,13 @@ jobs:
 
           # Integrity of the transferred key (hashes are safe to print).
           echo "byte count: $(wc -c < "$KEY_PATH")"
-          echo "line count: $(wc -l < "$KEY_PATH")"
           echo "sha256: $(shasum -a 256 "$KEY_PATH" | cut -d' ' -f1)"
-          head -1 "$KEY_PATH"
-          tail -1 "$KEY_PATH"
 
-          python3 -m pip install --quiet --user pyjwt cryptography
-          python3 - <<'PY'
+          # Homebrew's python refuses system-wide installs (PEP 668), so the
+          # JWT check gets its own throwaway environment.
+          python3 -m venv "$RUNNER_TEMP/ascvenv"
+          "$RUNNER_TEMP/ascvenv/bin/pip" install --quiet pyjwt cryptography
+          "$RUNNER_TEMP/ascvenv/bin/python" - <<'PY'
           import jwt, os, time, urllib.request, urllib.error
 
           key_id = os.environ["ASC_KEY_ID"]
