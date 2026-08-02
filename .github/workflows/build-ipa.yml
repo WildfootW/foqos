@@ -65,7 +65,54 @@ jobs:
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
         run: |
           mkdir -p "$HOME/private_keys"
-          echo "$ASC_API_KEY_P8" > "$HOME/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+          printf '%s\n' "$ASC_API_KEY_P8" > "$HOME/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+          chmod 600 "$HOME/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+
+      - name: Verify App Store Connect authentication
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          KEY_PATH="$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+
+          # Integrity of the transferred key (hashes are safe to print).
+          echo "byte count: $(wc -c < "$KEY_PATH")"
+          echo "line count: $(wc -l < "$KEY_PATH")"
+          echo "sha256: $(shasum -a 256 "$KEY_PATH" | cut -d' ' -f1)"
+          head -1 "$KEY_PATH"
+          tail -1 "$KEY_PATH"
+
+          python3 -m pip install --quiet --user pyjwt cryptography
+          python3 - <<'PY'
+          import jwt, os, time, urllib.request, urllib.error
+
+          key_id = os.environ["ASC_KEY_ID"]
+          issuer = os.environ["ASC_ISSUER_ID"]
+          key = open(os.path.expanduser(f"~/private_keys/AuthKey_{key_id}.p8")).read()
+
+          now = int(time.time())
+          token = jwt.encode(
+              {"iss": issuer, "iat": now, "exp": now + 900, "aud": "appstoreconnect-v1"},
+              key, algorithm="ES256", headers={"kid": key_id, "typ": "JWT"},
+          )
+          req = urllib.request.Request(
+              "https://api.appstoreconnect.apple.com/v1/bundleIds?limit=200",
+              headers={"Authorization": "Bearer " + token},
+          )
+          try:
+              with urllib.request.urlopen(req) as r:
+                  import json
+                  data = json.load(r)
+                  print("AUTH OK - existing bundle ids:")
+                  for item in data["data"]:
+                      print("  ", item["attributes"]["identifier"])
+                  if not data["data"]:
+                      print("   (none registered yet)")
+          except urllib.error.HTTPError as e:
+              print("AUTH FAILED", e.code)
+              print(e.read().decode())
+              raise SystemExit(1)
+          PY
 
       - name: Archive
         run: |
