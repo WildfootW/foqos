@@ -1,11 +1,6 @@
 import Foundation
 
 enum SessionTimeCalculator {
-  private static let timerStrategyIds: Set<String> = [
-    NFCTimerBlockingStrategy.id,
-    QRTimerBlockingStrategy.id,
-    ShortcutTimerBlockingStrategy.id,
-  ]
 
   static func elapsedFocusTime(
     for session: BlockedProfileSession,
@@ -56,17 +51,12 @@ enum SessionTimeCalculator {
   }
 
   static func isTimerSession(_ session: BlockedProfileSession) -> Bool {
-    Self.timerStrategyIds.contains(session.tag)
-      || Self.timerStrategyIds.contains(session.blockedProfile.blockingStrategyId ?? "")
+    session.blockedProfile.method.stop == .timer
   }
 
   static func timerDurationInSeconds(for session: BlockedProfileSession) -> TimeInterval? {
-    guard let strategyData = session.blockedProfile.strategyData else {
-      return nil
-    }
-
-    let timerData = StrategyTimerData.toStrategyTimerData(from: strategyData)
-    return TimeInterval(timerData.durationInMinutes * 60)
+    guard session.blockedProfile.method.stop == .timer else { return nil }
+    return TimeInterval(session.blockedProfile.method.stopTimerMinutes * 60)
   }
 
   private static func isScheduledSession(_ session: BlockedProfileSession) -> Bool {
@@ -74,12 +64,7 @@ enum SessionTimeCalculator {
   }
 
   private static func pauseDurationInSeconds(for profile: BlockedProfiles) -> TimeInterval {
-    guard let strategyData = profile.strategyData else {
-      return TimeInterval(15 * 60)
-    }
-
-    let pauseData = StrategyPauseTimerData.toStrategyPauseTimerData(from: strategyData)
-    return TimeInterval(pauseData.pauseDurationInMinutes * 60)
+    TimeInterval((profile.method.interruption.releaseMinutes ?? 15) * 60)
   }
 
   private static func calculateBreakDuration(

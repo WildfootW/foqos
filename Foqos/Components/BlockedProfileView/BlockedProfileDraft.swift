@@ -23,11 +23,8 @@ final class BlockedProfileDraft: ObservableObject {
   @Published var domains: [String]
   @Published var physicalUnblockItems: [PhysicalUnblockItem]
   @Published var schedule: BlockedProfileSchedule
-  @Published var enableUsageLimit: Bool
-  @Published var usageLimitDailyMinutes: Int
-  @Published var usageLimitUnlockMinutes: Int
   @Published var selectedActivity: FamilyActivitySelection
-  @Published var selectedStrategy: BlockingStrategy? {
+  @Published var method: BlockingMethod {
     didSet {
       enforceStrategyBreaksPolicy()
     }
@@ -53,13 +50,6 @@ final class BlockedProfileDraft: ObservableObject {
     customReminderMessage = profile?.customReminderMessage ?? ""
     domains = profile?.domains ?? []
     physicalUnblockItems = profile?.physicalUnblockItems ?? []
-    enableUsageLimit = profile?.usageLimit?.isEnabled ?? false
-    usageLimitDailyMinutes =
-      profile?.usageLimit?.dailyLimitInMinutes
-      ?? UsageLimitSettings.defaultDailyLimitInMinutes
-    usageLimitUnlockMinutes =
-      profile?.usageLimit?.unlockDurationInMinutes
-      ?? UsageLimitSettings.defaultUnlockDurationInMinutes
     schedule =
       profile?.schedule
       ?? BlockedProfileSchedule(
@@ -71,11 +61,7 @@ final class BlockedProfileDraft: ObservableObject {
         updatedAt: Date()
       )
 
-    if let profileStrategyId = profile?.blockingStrategyId {
-      selectedStrategy = StrategyManager.getStrategyFromId(id: profileStrategyId)
-    } else {
-      selectedStrategy = NFCBlockingStrategy()
-    }
+    method = profile?.method ?? BlockingMethod()
 
     enforceStrategyBreaksPolicy()
   }
@@ -85,7 +71,16 @@ final class BlockedProfileDraft: ObservableObject {
   }
 
   var selectedStrategyAllowsTimedBreaks: Bool {
-    return selectedStrategy?.allowsTimedBreaks ?? true
+    if case .timedBreak = method.interruption { return true }
+    return method.interruption == .none
+  }
+
+  var methodValidationIssues: [BlockingMethod.ValidationIssue] {
+    method.validate(
+      hasActiveSchedule: schedule.isActive,
+      hasPhysicalUnlockItems: !physicalUnblockItems.isEmpty,
+      isAllowMode: enableAllowMode
+    )
   }
 
   func save(
@@ -99,14 +94,11 @@ final class BlockedProfileDraft: ObservableObject {
     let physicalUnblockItemsToSave: [PhysicalUnblockItem]? =
       physicalUnblockItems.isEmpty ? nil : physicalUnblockItems
     let enableTimedBreaksToSave = selectedStrategyAllowsTimedBreaks && enableBreaks
-    let usageLimitToSave: UsageLimitSettings? =
-      (enableUsageLimit && !enableAllowMode)
-      ? UsageLimitSettings(
-        isEnabled: true,
-        dailyLimitInMinutes: usageLimitDailyMinutes,
-        unlockDurationInMinutes: usageLimitUnlockMinutes
-      )
-      : nil
+    var methodToSave = method
+    if enableAllowMode, methodToSave.enforcement.allowanceMinutes != nil {
+      // An allowance counts usage of blocked apps; there are none in Allow Mode.
+      methodToSave.enforcement = .blockImmediately
+    }
 
     if let existingProfile {
       let updatedProfile = try BlockedProfiles.updateProfile(
@@ -114,7 +106,6 @@ final class BlockedProfileDraft: ObservableObject {
         in: context,
         name: name,
         selection: selectedActivity,
-        blockingStrategyId: selectedStrategy?.getIdentifier(),
         enableLiveActivity: enableLiveActivity,
         reminderTime: reminderTimeSeconds,
         customReminderMessage: customReminderMessage,
@@ -132,11 +123,10 @@ final class BlockedProfileDraft: ObservableObject {
         schedule: schedule,
         disableBackgroundStops: disableBackgroundStops,
         enableEmergencyUnblock: enableEmergencyUnblock,
-        usageLimit: .some(usageLimitToSave)
+        blockingMethod: methodToSave
       )
 
       DeviceActivityCenterUtil.scheduleTimerActivity(for: updatedProfile)
-      UsageLimitScheduler.sync(for: updatedProfile)
       return updatedProfile
     }
 
@@ -144,7 +134,6 @@ final class BlockedProfileDraft: ObservableObject {
       in: context,
       name: name,
       selection: selectedActivity,
-      blockingStrategyId: selectedStrategy?.getIdentifier() ?? NFCBlockingStrategy.id,
       enableLiveActivity: enableLiveActivity,
       reminderTimeInSeconds: reminderTimeSeconds,
       customReminderMessage: customReminderMessage,
@@ -162,19 +151,15 @@ final class BlockedProfileDraft: ObservableObject {
       schedule: schedule,
       disableBackgroundStops: disableBackgroundStops,
       enableEmergencyUnblock: enableEmergencyUnblock,
-      usageLimit: usageLimitToSave
+      blockingMethod: methodToSave
     )
 
     DeviceActivityCenterUtil.scheduleTimerActivity(for: newProfile)
-    UsageLimitScheduler.sync(for: newProfile)
     return newProfile
   }
 
   private func enforceStrategyBreaksPolicy() {
-    if selectedStrategyAllowsTimedBreaks {
-      return
-    }
-
+    guard !selectedStrategyAllowsTimedBreaks else { return }
     enableBreaks = false
     allowMultipleBreaks = false
   }

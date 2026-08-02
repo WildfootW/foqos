@@ -38,9 +38,6 @@ struct BlockedProfileView: View {
   // Sheet for schedule picker
   @State private var showingSchedulePicker = false
 
-  // Sheet for strategy picker
-  @State private var showingStrategyPicker = false
-
   // Alert management
   @State private var alertIdentifier: AlertIdentifier?
 
@@ -89,11 +86,7 @@ struct BlockedProfileView: View {
 
         BlockedProfileNameSection(draft: draft, disabled: false)
 
-        BlockedProfileStrategySection(
-          draft: draft,
-          showingStrategyPicker: $showingStrategyPicker,
-          disabled: isBlocking
-        )
+        BlockingMethodSection(draft: draft, disabled: isBlocking)
 
         BlockedProfileAppsSection(
           draft: draft,
@@ -108,8 +101,6 @@ struct BlockedProfileView: View {
         )
 
         BlockedProfileStrictUnlocksSection(draft: draft, disabled: isBlocking)
-
-        BlockedProfileUsageLimitSection(draft: draft, disabled: isBlocking)
 
         BlockedProfileScheduleSection(
           draft: draft,
@@ -214,13 +205,6 @@ struct BlockedProfileView: View {
         SchedulePicker(
           schedule: $draft.schedule,
           isPresented: $showingSchedulePicker
-        )
-      }
-      .sheet(isPresented: $showingStrategyPicker) {
-        StrategyPicker(
-          strategies: StrategyManager.availableStrategies,
-          selectedStrategy: $draft.selectedStrategy,
-          isPresented: $showingStrategyPicker
         )
       }
       .sheet(isPresented: $showingGeneratedQRCode) {

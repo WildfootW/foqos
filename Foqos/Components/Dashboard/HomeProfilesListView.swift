@@ -85,8 +85,7 @@ private struct HomeProfileRow: View {
   }
 
   private var blockingStrategy: BlockingStrategy? {
-    guard let strategyId = profile.blockingStrategyId else { return nil }
-    return StrategyManager.getStrategyFromId(id: strategyId)
+    return StrategyManager.strategy(for: profile.method)
   }
 
   private var activeAction: BlockingStrategySessionAction {

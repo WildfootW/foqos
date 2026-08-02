@@ -5,9 +5,9 @@ import XCTest
 final class SessionTimeCalculatorTests: XCTestCase {
   func testTimerSessionDisplaysRemainingTime() {
     let startTime = Date(timeIntervalSinceReferenceDate: 1_000)
-    let profile = makeProfile(strategyId: NFCTimerBlockingStrategy.id, durationInMinutes: 60)
+    let profile = makeProfile(strategyId: "session-tag", durationInMinutes: 60)
     let session = BlockedProfileSession(
-      tag: NFCTimerBlockingStrategy.id,
+      tag: "session-tag",
       blockedProfile: profile
     )
     session.startTime = startTime
@@ -26,9 +26,9 @@ final class SessionTimeCalculatorTests: XCTestCase {
 
   func testManualSessionDisplaysElapsedTime() {
     let startTime = Date(timeIntervalSinceReferenceDate: 1_000)
-    let profile = makeProfile(strategyId: ManualBlockingStrategy.id)
+    let profile = makeProfile(strategyId: "session-tag")
     let session = BlockedProfileSession(
-      tag: ManualBlockingStrategy.id,
+      tag: "session-tag",
       blockedProfile: profile
     )
     session.startTime = startTime
@@ -42,12 +42,12 @@ final class SessionTimeCalculatorTests: XCTestCase {
   func testTimerDisplayMatchesLiveActivityEndTimeAfterBreak() {
     let startTime = Date(timeIntervalSinceReferenceDate: 1_000)
     let profile = makeProfile(
-      strategyId: QRTimerBlockingStrategy.id,
+      strategyId: "session-tag",
       durationInMinutes: 60,
       enableBreaks: true
     )
     let session = BlockedProfileSession(
-      tag: QRTimerBlockingStrategy.id,
+      tag: "session-tag",
       blockedProfile: profile
     )
     session.startTime = startTime
@@ -73,13 +73,13 @@ final class SessionTimeCalculatorTests: XCTestCase {
   func testSingleBreakIsUnavailableAfterItEnds() {
     let startTime = Date(timeIntervalSinceReferenceDate: 1_000)
     let profile = makeProfile(
-      strategyId: ManualBlockingStrategy.id,
+      strategyId: "session-tag",
       enableBreaks: true,
       breakTimeInMinutes: 15,
       allowMultipleBreaks: false
     )
     let session = BlockedProfileSession(
-      tag: ManualBlockingStrategy.id,
+      tag: "session-tag",
       blockedProfile: profile
     )
     session.startTime = startTime
@@ -100,13 +100,13 @@ final class SessionTimeCalculatorTests: XCTestCase {
   func testReusableBreakStoppedEarlyLeavesRemainingAllowance() {
     let startTime = Date(timeIntervalSinceReferenceDate: 1_000)
     let profile = makeProfile(
-      strategyId: ManualBlockingStrategy.id,
+      strategyId: "session-tag",
       enableBreaks: true,
       breakTimeInMinutes: 15,
       allowMultipleBreaks: true
     )
     let session = BlockedProfileSession(
-      tag: ManualBlockingStrategy.id,
+      tag: "session-tag",
       blockedProfile: profile
     )
     session.startTime = startTime
@@ -121,13 +121,13 @@ final class SessionTimeCalculatorTests: XCTestCase {
   func testReusableBreakDisplaysRemainingAllowanceDuringSecondBreak() {
     let startTime = Date(timeIntervalSinceReferenceDate: 1_000)
     let profile = makeProfile(
-      strategyId: ManualBlockingStrategy.id,
+      strategyId: "session-tag",
       enableBreaks: true,
       breakTimeInMinutes: 15,
       allowMultipleBreaks: true
     )
     let session = BlockedProfileSession(
-      tag: ManualBlockingStrategy.id,
+      tag: "session-tag",
       blockedProfile: profile
     )
     session.startTime = startTime
@@ -148,13 +148,13 @@ final class SessionTimeCalculatorTests: XCTestCase {
 
   func testReusableBreakUnavailableWhenAllowanceIsExhausted() {
     let profile = makeProfile(
-      strategyId: ManualBlockingStrategy.id,
+      strategyId: "session-tag",
       enableBreaks: true,
       breakTimeInMinutes: 15,
       allowMultipleBreaks: true
     )
     let session = BlockedProfileSession(
-      tag: ManualBlockingStrategy.id,
+      tag: "session-tag",
       blockedProfile: profile
     )
     session.usedBreakDurationInSeconds = 15 * 60
@@ -165,13 +165,13 @@ final class SessionTimeCalculatorTests: XCTestCase {
 
   func testReusableBreakAllowanceResetsForNewSession() {
     let profile = makeProfile(
-      strategyId: ManualBlockingStrategy.id,
+      strategyId: "session-tag",
       enableBreaks: true,
       breakTimeInMinutes: 15,
       allowMultipleBreaks: true
     )
     let session = BlockedProfileSession(
-      tag: ManualBlockingStrategy.id,
+      tag: "session-tag",
       blockedProfile: profile
     )
 
@@ -186,19 +186,18 @@ final class SessionTimeCalculatorTests: XCTestCase {
     breakTimeInMinutes: Int = 15,
     allowMultipleBreaks: Bool = false
   ) -> BlockedProfiles {
-    let strategyData = durationInMinutes.flatMap {
-      StrategyTimerData.toData(
-        from: StrategyTimerData(durationInMinutes: $0, hideStopButton: false)
-      )
-    }
+    let method = BlockingMethod(
+      start: .manual,
+      stop: durationInMinutes == nil ? .manual : .timer,
+      stopTimerMinutes: durationInMinutes ?? 25
+    )
 
     return BlockedProfiles(
       name: "Focus",
-      blockingStrategyId: strategyId,
-      strategyData: strategyData,
       enableBreaks: enableBreaks,
       breakTimeInMinutes: breakTimeInMinutes,
-      allowMultipleBreaks: allowMultipleBreaks
+      allowMultipleBreaks: allowMultipleBreaks,
+      blockingMethod: method
     )
   }
 }

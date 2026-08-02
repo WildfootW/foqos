@@ -32,9 +32,9 @@ class UsageLimitDailyTimerActivity: TimerActivity {
   }
 
   func lock(for profile: SharedData.ProfileSnapshot) {
-    guard profile.usageLimit?.isEnabled == true else {
+    guard profile.method.enforcement.allowanceMinutes != nil else {
       dailyLog.info(
-        "Ignoring usage limit threshold for \(profile.id.uuidString), feature disabled"
+        "Ignoring allowance threshold for \(profile.id.uuidString), not an allowance profile"
       )
       return
     }

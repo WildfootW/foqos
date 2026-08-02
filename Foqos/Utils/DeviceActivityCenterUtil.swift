@@ -69,11 +69,10 @@ class DeviceActivityCenterUtil {
   }
 
   static func startStrategyTimerActivity(for profile: BlockedProfiles) {
-    guard let strategyData = profile.strategyData else {
-      print("No strategy data found for profile: \(profile.id.uuidString)")
+    guard profile.method.stop == .timer else {
+      print("Profile \(profile.id.uuidString) does not stop on a timer")
       return
     }
-    let timerData = StrategyTimerData.toStrategyTimerData(from: strategyData)
 
     let center = DeviceActivityCenter()
     let strategyTimerActivity = StrategyTimerActivity()
@@ -81,7 +80,7 @@ class DeviceActivityCenterUtil {
       from: profile.id.uuidString)
 
     let (intervalStart, intervalEnd) = getTimeIntervalStartAndEnd(
-      from: TimeInterval(timerData.durationInMinutes * 60))
+      from: TimeInterval(profile.method.stopTimerMinutes * 60))
 
     let deviceActivitySchedule = DeviceActivitySchedule(
       intervalStart: intervalStart,
@@ -142,7 +141,7 @@ class DeviceActivityCenterUtil {
   }
 
   static func schedulePauseTimerActivity(for profile: BlockedProfiles) throws {
-    let pauseData = StrategyPauseTimerData.toStrategyPauseTimerData(from: profile.strategyData)
+    let pauseMinutes = profile.method.interruption.releaseMinutes ?? 15
 
     let center = DeviceActivityCenter()
     let pauseTimerActivity = PauseTimerActivity()
@@ -150,7 +149,7 @@ class DeviceActivityCenterUtil {
       from: profile.id.uuidString)
 
     let (intervalStart, intervalEnd) = getTimeIntervalStartAndEnd(
-      from: TimeInterval(pauseData.pauseDurationInMinutes * 60))
+      from: TimeInterval(pauseMinutes * 60))
 
     let deviceActivitySchedule = DeviceActivitySchedule(
       intervalStart: intervalStart,

@@ -45,19 +45,6 @@ struct StrategyManagerDebugCard: View {
 
       Divider()
 
-      // Available Strategies
-      VStack(alignment: .leading, spacing: 4) {
-        Text("Available Strategies:")
-          .font(.caption)
-          .foregroundColor(.secondary)
-
-        ForEach(Array(StrategyManager.availableStrategies.enumerated()), id: \.offset) {
-          _, strategy in
-          Text("• \(strategy.getIdentifier())")
-            .font(.caption)
-            .foregroundColor(.primary)
-        }
-      }
     }
   }
 }

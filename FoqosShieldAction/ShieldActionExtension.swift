@@ -58,8 +58,13 @@ class ShieldActionExtension: ShieldActionDelegate {
       return
     }
 
-    let configuration = SoftUnblockStrategyData.decode(snapshot.strategyData)
-    let durationInMinutes = max(configuration.accessDurationInMinutes, 1)
+    // Only a tap-to-open profile mints a grant from the shield button; a
+    // scan-to-open one has to be earned in the app.
+    guard case .grantByButton(let minutes, _) = snapshot.method.interruption else {
+      completionHandler(.close)
+      return
+    }
+    let durationInMinutes = max(minutes, 1)
     let now = Date()
     let grant = SoftUnblockGrant(
       id: UUID(),

@@ -89,8 +89,13 @@ struct HomeView: View {
     return !isBlocking
   }
 
+  /// Profiles running an allowance right now; only those have anything to
+  /// show or scan for.
   private var usageLimitProfiles: [BlockedProfiles] {
-    return profiles.filter { $0.usageLimit?.isEnabled == true }
+    return profiles.filter {
+      $0.method.enforcement.allowanceMinutes != nil
+        && $0.sessions.contains(where: { $0.isActive })
+    }
   }
 
   var body: some View {
@@ -382,14 +387,12 @@ struct HomeView: View {
 
   private func loadApp() {
     strategyManager.loadActiveSession(context: context)
-    UsageLimitScheduler.syncAll(profiles: profiles)
   }
 
   private func onAppearApp() {
     requestAuthorizer.refreshAuthorizationStatus()
     strategyManager.loadActiveSession(context: context)
     strategyManager.cleanUpGhostSchedules(context: context)
-    UsageLimitScheduler.syncAll(profiles: profiles)
     refreshAlerts()
   }
 

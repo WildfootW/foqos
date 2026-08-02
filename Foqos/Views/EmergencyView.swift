@@ -20,9 +20,6 @@ struct EmergencyView: View {
       }
       .padding()
     }
-    .onAppear {
-      strategyManager.checkAndResetEmergencyUnblocks()
-    }
   }
 
   private var header: some View {
@@ -33,78 +30,15 @@ struct EmergencyView: View {
 
         Spacer()
 
-        HStack(spacing: 8) {
-          HStack(spacing: 6) {
-            Image(systemName: "clock.arrow.circlepath")
-              .font(.caption)
-              .foregroundColor(.secondary)
-
-            Group {
-              if let nextResetDate = strategyManager.getNextResetDate() {
-                let timeUntilReset = nextResetDate.timeIntervalSinceNow
-                if timeUntilReset <= 24 * 60 * 60 {  // Less than 24 hours
-                  let hoursRemaining = max(1, Int(ceil(timeUntilReset / 3600)))
-                  Text("Resets in \(hoursRemaining)h")
-                    .font(.caption)
-                } else {
-                  Text("Resets \(nextResetDate, format: .dateTime.month().day())")
-                    .font(.caption)
-                }
-              }
-            }
-          }
-          .padding(.vertical, 6)
-
-          Menu {
-            let currentPeriod = strategyManager.getResetPeriodInWeeks()
-
-            Button {
-              strategyManager.setResetPeriodInWeeks(2)
-            } label: {
-              if currentPeriod == 2 {
-                Label("2 weeks", systemImage: "checkmark")
-              } else {
-                Text("2 weeks")
-              }
-            }
-
-            Button {
-              strategyManager.setResetPeriodInWeeks(4)
-            } label: {
-              if currentPeriod == 4 {
-                Label("4 weeks", systemImage: "checkmark")
-              } else {
-                Text("4 weeks")
-              }
-            }
-
-            Button {
-              strategyManager.setResetPeriodInWeeks(6)
-            } label: {
-              if currentPeriod == 6 {
-                Label("6 weeks", systemImage: "checkmark")
-              } else {
-                Text("6 weeks")
-              }
-            }
-
-            Button {
-              strategyManager.setResetPeriodInWeeks(8)
-            } label: {
-              if currentPeriod == 8 {
-                Label("8 weeks", systemImage: "checkmark")
-              } else {
-                Text("8 weeks")
-              }
-            }
-          } label: {
-            Image(systemName: "gearshape.fill")
-              .font(.caption)
-              .foregroundColor(.secondary)
-              .padding(8)
-              .background(Circle().fill(Color.secondary.opacity(0.1)))
-          }
+        HStack(spacing: 6) {
+          Image(systemName: "arrow.counterclockwise")
+            .font(.caption)
+            .foregroundColor(.secondary)
+          Text("Refills next session")
+            .font(.caption)
+            .foregroundColor(.secondary)
         }
+        .padding(.vertical, 6)
       }
 
       Text(

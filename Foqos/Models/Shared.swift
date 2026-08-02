@@ -20,8 +20,6 @@ enum SharedData {
     var selectedActivity: FamilyActivitySelection
     var createdAt: Date
     var updatedAt: Date
-    var blockingStrategyId: String?
-    var strategyData: Data?
     var order: Int
 
     var enableLiveActivity: Bool
@@ -52,7 +50,9 @@ enum SharedData {
     var disableBackgroundStops: Bool?
     var enableEmergencyUnblock: Bool?
 
-    var usageLimit: UsageLimitSettings? = nil
+    var blockingMethod: BlockingMethod? = nil
+
+    var method: BlockingMethod { blockingMethod ?? BlockingMethod() }
   }
 
   // MARK: – Serializable snapshot of a session (no profile object)

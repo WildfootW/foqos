@@ -11,8 +11,6 @@ class BlockedProfiles {
   var selectedActivity: FamilyActivitySelection
   var createdAt: Date
   var updatedAt: Date
-  var blockingStrategyId: String?
-  var strategyData: Data?
   var order: Int = 0
 
   var enableLiveActivity: Bool = false
@@ -51,7 +49,14 @@ class BlockedProfiles {
 
   var customReminderMessage: String?
 
-  var usageLimit: UsageLimitSettings? = nil
+  /// Nil only for rows written before the blocking method replaced the
+  /// strategy id; `method` reads through to a default so callers never branch.
+  var blockingMethod: BlockingMethod? = nil
+
+  var method: BlockingMethod {
+    get { blockingMethod ?? BlockingMethod() }
+    set { blockingMethod = newValue }
+  }
 
   @Relationship var sessions: [BlockedProfileSession] = []
 
@@ -65,8 +70,8 @@ class BlockedProfiles {
   }
 
   var allowsTimedBreaks: Bool {
-    let strategyId = blockingStrategyId ?? NFCBlockingStrategy.id
-    return StrategyManager.getStrategyFromId(id: strategyId).allowsTimedBreaks
+    if case .timedBreak = method.interruption { return true }
+    return method.interruption == .none
   }
 
   // MARK: - Physical Unblock Helpers
@@ -100,8 +105,6 @@ class BlockedProfiles {
     selectedActivity: FamilyActivitySelection = FamilyActivitySelection(),
     createdAt: Date = Date(),
     updatedAt: Date = Date(),
-    blockingStrategyId: String = NFCBlockingStrategy.id,
-    strategyData: Data? = nil,
     enableLiveActivity: Bool = false,
     reminderTimeInSeconds: UInt32? = nil,
     customReminderMessage: String? = nil,
@@ -120,15 +123,13 @@ class BlockedProfiles {
     schedule: BlockedProfileSchedule? = nil,
     disableBackgroundStops: Bool = false,
     enableEmergencyUnblock: Bool = true,
-    usageLimit: UsageLimitSettings? = nil
+    blockingMethod: BlockingMethod? = nil
   ) {
     self.id = id
     self.name = name
     self.selectedActivity = selectedActivity
     self.createdAt = createdAt
     self.updatedAt = updatedAt
-    self.blockingStrategyId = blockingStrategyId
-    self.strategyData = strategyData
     self.order = order
 
     self.enableLiveActivity = enableLiveActivity
@@ -151,20 +152,12 @@ class BlockedProfiles {
 
     self.disableBackgroundStops = disableBackgroundStops
     self.enableEmergencyUnblock = enableEmergencyUnblock
-    self.usageLimit = usageLimit
+    self.blockingMethod = blockingMethod
   }
 
   func showStopButton(elapsedTime: TimeInterval) -> Bool {
-    guard let strategyData = self.strategyData else { return true }
-    let timerData = StrategyTimerData.toStrategyTimerData(from: strategyData)
-
-    // If hideStopButton is false, always show the stop button
-    if !timerData.hideStopButton {
-      return true
-    }
-
-    let durationInSeconds = Double(timerData.durationInMinutes * 60)
-    return elapsedTime >= durationInSeconds
+    guard method.stop == .timer, method.hideStopUntilTimerEnds else { return true }
+    return elapsedTime >= Double(method.stopTimerMinutes * 60)
   }
 
   static func fetchProfiles(in context: ModelContext) throws
@@ -201,8 +194,6 @@ class BlockedProfiles {
     in context: ModelContext,
     name: String? = nil,
     selection: FamilyActivitySelection? = nil,
-    blockingStrategyId: String? = nil,
-    strategyData: Data? = nil,
     enableLiveActivity: Bool? = nil,
     reminderTime: UInt32? = nil,
     customReminderMessage: String? = nil,
@@ -221,7 +212,7 @@ class BlockedProfiles {
     schedule: BlockedProfileSchedule? = nil,
     disableBackgroundStops: Bool? = nil,
     enableEmergencyUnblock: Bool? = nil,
-    usageLimit: UsageLimitSettings?? = nil
+    blockingMethod: BlockingMethod? = nil
   ) throws -> BlockedProfiles {
     if let newName = name {
       profile.name = newName
@@ -229,29 +220,6 @@ class BlockedProfiles {
 
     if let newSelection = selection {
       profile.selectedActivity = newSelection
-    }
-
-    if let newStrategyId = blockingStrategyId {
-      let oldStrategyId = profile.blockingStrategyId
-      let timerStrategyIds = [
-        QRTimerBlockingStrategy.id,
-        NFCTimerBlockingStrategy.id,
-        ShortcutTimerBlockingStrategy.id,
-      ]
-
-      // Check if switching FROM timer TO non-timer strategy
-      let wasTimer = oldStrategyId != nil && timerStrategyIds.contains(oldStrategyId!)
-      let isTimer = timerStrategyIds.contains(newStrategyId)
-
-      if wasTimer && !isTimer {
-        profile.strategyData = nil
-      }
-
-      profile.blockingStrategyId = newStrategyId
-    }
-
-    if let newStrategyData = strategyData {
-      profile.strategyData = newStrategyData
     }
 
     if let newEnableLiveActivity = enableLiveActivity {
@@ -318,8 +286,8 @@ class BlockedProfiles {
       profile.physicalUnblockItems = PhysicalUnblockItem.normalizedItems(physicalUnblockItems)
     }
 
-    if let usageLimit {
-      profile.usageLimit = usageLimit
+    if let blockingMethod {
+      profile.blockingMethod = blockingMethod
     }
 
     profile.reminderTimeInSeconds = reminderTime
@@ -375,8 +343,6 @@ class BlockedProfiles {
       selectedActivity: profile.selectedActivity,
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
-      blockingStrategyId: profile.blockingStrategyId,
-      strategyData: profile.strategyData,
       order: profile.order,
       enableLiveActivity: profile.enableLiveActivity,
       reminderTimeInSeconds: profile.reminderTimeInSeconds,
@@ -397,7 +363,7 @@ class BlockedProfiles {
       schedule: profile.schedule,
       disableBackgroundStops: profile.disableBackgroundStops,
       enableEmergencyUnblock: profile.enableEmergencyUnblock,
-      usageLimit: profile.usageLimit
+      blockingMethod: profile.method
     )
   }
 
@@ -435,8 +401,6 @@ class BlockedProfiles {
     in context: ModelContext,
     name: String,
     selection: FamilyActivitySelection = FamilyActivitySelection(),
-    blockingStrategyId: String = NFCBlockingStrategy.id,
-    strategyData: Data? = nil,
     enableLiveActivity: Bool = false,
     reminderTimeInSeconds: UInt32? = nil,
     customReminderMessage: String = "",
@@ -454,15 +418,13 @@ class BlockedProfiles {
     schedule: BlockedProfileSchedule? = nil,
     disableBackgroundStops: Bool = false,
     enableEmergencyUnblock: Bool = true,
-    usageLimit: UsageLimitSettings? = nil
+    blockingMethod: BlockingMethod? = nil
   ) throws -> BlockedProfiles {
     let profileOrder = getNextOrder(in: context)
 
     let profile = BlockedProfiles(
       name: name,
       selectedActivity: selection,
-      blockingStrategyId: blockingStrategyId,
-      strategyData: strategyData,
       enableLiveActivity: enableLiveActivity,
       reminderTimeInSeconds: reminderTimeInSeconds,
       customReminderMessage: customReminderMessage,
@@ -480,7 +442,7 @@ class BlockedProfiles {
       physicalUnblockItems: physicalUnblockItems,
       disableBackgroundStops: disableBackgroundStops,
       enableEmergencyUnblock: enableEmergencyUnblock,
-      usageLimit: usageLimit
+      blockingMethod: blockingMethod
     )
 
     if let schedule = schedule {
@@ -504,8 +466,6 @@ class BlockedProfiles {
     let cloned = BlockedProfiles(
       name: newName,
       selectedActivity: source.selectedActivity,
-      blockingStrategyId: source.blockingStrategyId ?? NFCBlockingStrategy.id,
-      strategyData: source.strategyData,
       enableLiveActivity: source.enableLiveActivity,
       reminderTimeInSeconds: source.reminderTimeInSeconds,
       customReminderMessage: source.customReminderMessage,
@@ -523,7 +483,7 @@ class BlockedProfiles {
       physicalUnblockItems: source.physicalUnblockItems,
       schedule: source.schedule,
       enableEmergencyUnblock: source.enableEmergencyUnblock,
-      usageLimit: source.usageLimit
+      blockingMethod: source.blockingMethod
     )
 
     context.insert(cloned)

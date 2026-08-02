@@ -119,7 +119,6 @@ struct GuidedBlockedProfileCreationView: View {
   @State private var showingActivityPicker = false
   @State private var showingDomainPicker = false
   @State private var showingSchedulePicker = false
-  @State private var showingStrategyPicker = false
   @State private var alertIdentifier: AlertIdentifier?
   @State private var navigationDirection: CGFloat = 1
 
@@ -217,13 +216,6 @@ struct GuidedBlockedProfileCreationView: View {
           isPresented: $showingSchedulePicker
         )
       }
-      .sheet(isPresented: $showingStrategyPicker) {
-        StrategyPicker(
-          strategies: StrategyManager.availableStrategies,
-          selectedStrategy: $draft.selectedStrategy,
-          isPresented: $showingStrategyPicker
-        )
-      }
       .alert(item: $alertIdentifier) { alert in
         Alert(
           title: Text("Error"),
@@ -292,13 +284,32 @@ struct GuidedBlockedProfileCreationView: View {
       }
 
     case .strategy:
-      guidedCard(title: "Blocking Strategy") {
-        BlockedProfileStrategyFields(
-          draft: draft,
-          showingStrategyPicker: $showingStrategyPicker,
-          disabled: false,
-          showsSeparators: true
-        )
+      guidedCard(title: "Blocking Method") {
+        ForEach(BlockingMethodPreset.all) { preset in
+          Button {
+            draft.method = preset.method
+          } label: {
+            HStack(spacing: 12) {
+              Image(systemName: preset.symbolName)
+                .frame(width: 24)
+                .foregroundStyle(
+                  draft.method == preset.method ? Color.accentColor : .secondary)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(preset.name)
+                  .font(.subheadline).fontWeight(.semibold)
+                  .foregroundStyle(.primary)
+                Text(preset.detail)
+                  .font(.caption).foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Spacer()
+              if draft.method == preset.method {
+                Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+              }
+            }
+            .padding(.vertical, 6)
+          }
+        }
       }
 
     case .apps:
@@ -459,7 +470,7 @@ private struct GuidedProfileReviewContent: View {
     VStack(spacing: 0) {
       reviewRow(title: "Name", value: draft.name)
       reviewDivider
-      reviewRow(title: "Strategy", value: draft.selectedStrategy?.name ?? "NFC")
+      reviewRow(title: "Method", value: draft.method.summary)
       reviewDivider
       reviewRow(
         title: "Apps", value: FamilyActivityUtil.getCountDisplayText(draft.selectedActivity))

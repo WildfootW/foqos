@@ -179,7 +179,6 @@ struct HomeProfileLauncher: View {
     HomeProfileLauncher(
       activeProfile: BlockedProfiles(
         name: "Work Focus",
-        blockingStrategyId: ManualBlockingStrategy.id,
         enableLiveActivity: true,
         reminderTimeInSeconds: 3600,
         enableBreaks: true,
@@ -199,7 +198,6 @@ struct HomeProfileLauncher: View {
     HomeProfileLauncher(
       activeProfile: BlockedProfiles(
         name: "Work Focus",
-        blockingStrategyId: NFCPauseTimerBlockingStrategy.id,
         enableLiveActivity: true,
         reminderTimeInSeconds: 3600,
         enableBreaks: true,

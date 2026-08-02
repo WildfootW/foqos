@@ -19,7 +19,7 @@ struct ProfileDebugCard: View {
 
       // Strategy & Features
       Group {
-        DebugRow(label: "Strategy ID", value: profile.blockingStrategyId ?? "nil")
+        DebugRow(label: "Method", value: profile.method.summary)
         DebugRow(label: "Enable Live Activity", value: "\(profile.enableLiveActivity)")
         DebugRow(label: "Enable Breaks", value: "\(profile.enableBreaks)")
         DebugRow(label: "Break Time (minutes)", value: "\(profile.breakTimeInMinutes)")
@@ -84,7 +84,6 @@ struct ProfileDebugCard: View {
 #Preview {
   let profile = BlockedProfiles(
     name: "Work Focus",
-    blockingStrategyId: NFCBlockingStrategy.id,
     enableLiveActivity: true,
     reminderTimeInSeconds: 3600,
     customReminderMessage: "Time to focus!",
@@ -102,7 +101,6 @@ struct ProfileDebugCard: View {
 #Preview("Profile with NFC Tag") {
   let profile = BlockedProfiles(
     name: "Deep Work",
-    blockingStrategyId: NFCBlockingStrategy.id,
     enableLiveActivity: false,
     enableBreaks: false,
     enableStrictMode: true,
@@ -128,7 +126,6 @@ struct ProfileDebugCard: View {
 
   let profile = BlockedProfiles(
     name: "Scheduled Focus",
-    blockingStrategyId: ManualBlockingStrategy.id,
     enableLiveActivity: true,
     enableBreaks: true,
     order: 2,

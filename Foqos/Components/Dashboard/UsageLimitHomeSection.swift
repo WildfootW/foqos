@@ -139,7 +139,7 @@ struct UsageLimitHomeSection: View {
   }
 
   private func rowState(for profile: BlockedProfiles) -> RowState {
-    let settings = profile.usageLimit ?? UsageLimitSettings()
+    let allowance = profile.method.enforcement.allowanceMinutes ?? 0
     let locked = UsageLimitState.isLockedToday(profileId: profile.id)
     let grantExpiry = UsageLimitState.grantExpiry(profileId: profile.id)
 
@@ -164,7 +164,7 @@ struct UsageLimitHomeSection: View {
     return RowState(
       iconName: "hourglass",
       iconColor: .secondary,
-      statusText: "\(settings.dailyLimitInMinutes) min per day, resets at midnight",
+      statusText: "\(allowance) min allowance, resets with the schedule",
       showsScanButton: false
     )
   }
@@ -222,8 +222,7 @@ struct UsageLimitHomeSection: View {
       let snapshot = BlockedProfiles.getSnapshot(for: profile)
       let expiry = try UsageLimitScheduler.grantTemporaryUnlock(for: snapshot)
       refreshToken = Date()
-      let minutes = profile.usageLimit?.unlockDurationInMinutes
-        ?? UsageLimitSettings.defaultUnlockDurationInMinutes
+      let minutes = profile.method.interruption.releaseMinutes ?? 5
       showAlert(
         title: "Unlocked",
         message:

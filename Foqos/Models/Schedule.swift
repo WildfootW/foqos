@@ -48,8 +48,20 @@ struct BlockedProfileSchedule: Codable, Equatable {
     return !days.isEmpty
   }
 
+  /// True when the window runs past midnight into the following day, e.g.
+  /// 8 PM to 6 AM.
+  var crossesMidnight: Bool {
+    let start = startHour * 60 + startMinute
+    let end = endHour * 60 + endMinute
+    return end <= start
+  }
+
   var totalDurationInSeconds: Int {
-    return (endHour - startHour) * 3600 + (endMinute - startMinute) * 60
+    let seconds = (endHour - startHour) * 3600 + (endMinute - startMinute) * 60
+    // A window ending at or before its start time runs into the next day.
+    // Without this, every overnight schedule measures as zero or negative and
+    // gets rejected by the "at least an hour" check.
+    return seconds <= 0 ? seconds + 24 * 3600 : seconds
   }
 
   var summaryText: String {
@@ -63,8 +75,9 @@ struct BlockedProfileSchedule: Codable, Equatable {
 
     let start = formattedTimeString(hour24: startHour, minute: startMinute)
     let end = formattedTimeString(hour24: endHour, minute: endMinute)
+    let endSuffix = crossesMidnight ? " (next day)" : ""
 
-    return "\(daysSummary) · \(start) - \(end)"
+    return "\(daysSummary) · \(start) - \(end)\(endSuffix)"
   }
 
   func isTodayScheduled(now: Date = Date(), calendar: Calendar = .current) -> Bool {

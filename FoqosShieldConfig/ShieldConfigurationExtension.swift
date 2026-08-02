@@ -75,8 +75,8 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     webDomainToken: WebDomainToken?
   ) -> ShieldConfiguration? {
     for snapshot in SharedData.profileSnapshots.values {
-      guard let settings = snapshot.usageLimit,
-        settings.isEnabled,
+      guard let allowanceMinutes = snapshot.method.enforcement.allowanceMinutes,
+        allowanceMinutes > 0,
         UsageLimitState.isLockedToday(profileId: snapshot.id),
         !UsageLimitState.hasActiveGrant(profileId: snapshot.id)
       else { continue }
@@ -91,7 +91,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
       guard matchesApplication || matchesCategory || matchesWebDomain else { continue }
 
-      let minutes = settings.unlockDurationInMinutes
+      let minutes = snapshot.method.interruption.releaseMinutes ?? 5
       let subtitle =
         "\(snapshot.name): today's allowance is used up.\n"
         + "Open Foqos and scan this profile's unlock tag or QR code "
@@ -173,12 +173,13 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
       return nil
     }
 
-    let configuration = SoftUnblockStrategyData.decode(snapshot.strategyData)
+    guard case .grantByButton(let accessMinutes, _) = snapshot.method.interruption else {
+      return nil
+    }
     guard session.remainingUnblockCount > 0 else {
       return exhaustedSoftUnblockConfiguration(session: session)
     }
 
-    let accessMinutes = configuration.accessDurationInMinutes
     let buttonText = "Open for \(accessMinutes)m"
     let randomMessage = getFunBlockMessage(
       for: .app,

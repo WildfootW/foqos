@@ -45,25 +45,16 @@ struct ActiveProfileSessionView: View {
   }
 
   private var strategyName: String {
-    guard let strategyId = profile.blockingStrategyId else {
-      return "No Strategy"
-    }
-    return StrategyManager.getStrategyFromId(id: strategyId).name
+    return StrategyManager.strategy(for: profile.method).name
   }
 
   private var blockingStrategy: BlockingStrategy? {
-    guard let strategyId = profile.blockingStrategyId else {
-      return nil
-    }
-    return StrategyManager.getStrategyFromId(id: strategyId)
+    return StrategyManager.strategy(for: profile.method)
   }
 
   private var isSoftUnblockStrategy: Bool {
-    guard let strategyId = profile.blockingStrategyId else { return false }
-    return [
-      NFCSoftUnblockBlockingStrategy.id,
-      QRSoftUnblockBlockingStrategy.id,
-    ].contains(strategyId)
+    if case .grantByButton = profile.method.interruption { return true }
+    return false
   }
 
   private var supportingTextColor: Color {

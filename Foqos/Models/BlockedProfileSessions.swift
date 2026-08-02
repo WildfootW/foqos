@@ -20,6 +20,10 @@ class BlockedProfileSession {
 
   var forceStarted: Bool = false
 
+  /// Emergency releases spent in this session. Resets by virtue of a new
+  /// session existing.
+  var emergencyUsedCount: Int = 0
+
   var isActive: Bool {
     return endTime == nil
   }

@@ -5,20 +5,6 @@ import WidgetKit
 class StrategyManager: ObservableObject {
   static var shared = StrategyManager()
 
-  static let availableStrategies: [BlockingStrategy] = [
-    NFCSoftUnblockBlockingStrategy(),
-    QRSoftUnblockBlockingStrategy(),
-    ManualBlockingStrategy(),
-    NFCBlockingStrategy(),
-    NFCManualBlockingStrategy(),
-    NFCTimerBlockingStrategy(),
-    NFCPauseTimerBlockingStrategy(),
-    QRCodeBlockingStrategy(),
-    QRManualBlockingStrategy(),
-    QRTimerBlockingStrategy(),
-    QRPauseTimerBlockingStrategy(),
-    ShortcutTimerBlockingStrategy(),
-  ]
 
   @Published var elapsedTime: TimeInterval = 0
   @Published var sessionDisplayTime: TimeInterval = 0
@@ -33,11 +19,6 @@ class StrategyManager: ObservableObject {
 
   @Published var errorMessage: String?
 
-  @AppStorage("emergencyUnblocksRemaining") private var emergencyUnblocksRemaining: Int = 3
-  @AppStorage("emergencyUnblocksResetPeriodInWeeks") private
-    var emergencyUnblocksResetPeriodInWeeks: Int = 4
-  @AppStorage("lastEmergencyUnblocksResetDate") private var lastEmergencyUnblocksResetDateTimestamp:
-    Double = 0
 
   private let liveActivityManager = LiveActivityManager.shared
 
@@ -165,7 +146,7 @@ class StrategyManager: ObservableObject {
         return
       }
 
-      let manualStrategy = getStrategy(id: ManualBlockingStrategy.id, context: context)
+      let manualStrategy = getStrategy(context: context)
 
       if let localActiveSession = getActiveSession(context: context) {
         if localActiveSession.blockedProfile.disableBackgroundStops {
@@ -237,24 +218,20 @@ class StrategyManager: ObservableObject {
           return
         }
 
-        if let strategyTimerData = StrategyTimerData.toData(
-          from: StrategyTimerData(durationInMinutes: duration, hideStopButton: false)
-        ) {
-          profile.strategyData = strategyTimerData
-          profile.updatedAt = Date()
-          BlockedProfiles.updateSnapshot(for: profile)
-          try context.save()
-        }
+        profile.method.stop = .timer
+        profile.method.stopTimerMinutes = duration
+        profile.updatedAt = Date()
+        BlockedProfiles.updateSnapshot(for: profile)
+        try context.save()
 
-        let shortcutTimerStrategy = getStrategy(
-          id: ShortcutTimerBlockingStrategy.id, context: context)
+        let shortcutTimerStrategy = getStrategy(context: context)
         _ = shortcutTimerStrategy.startBlocking(
           context: context,
           profile: profile,
           forceStart: true
         )
       } else {
-        let manualStrategy = getStrategy(id: ManualBlockingStrategy.id, context: context)
+        let manualStrategy = getStrategy(context: context)
         _ = manualStrategy.startBlocking(
           context: context,
           profile: profile,
@@ -277,11 +254,7 @@ class StrategyManager: ObservableObject {
 
     let profile = session.blockedProfile
     let profileName = profile.name
-    let strategy = StrategyManager.availableStrategies.first {
-      $0.getIdentifier() == session.tag
-    }
-
-    guard strategy?.hasPauseMode == true else {
+    guard profile.method.interruption != .none else {
       throw PauseActiveSessionError.unsupportedStrategy(profileName: profileName)
     }
 
@@ -321,7 +294,7 @@ class StrategyManager: ObservableObject {
         return
       }
 
-      let manualStrategy = getStrategy(id: ManualBlockingStrategy.id, context: context)
+      let manualStrategy = getStrategy(context: context)
 
       guard let localActiveSession = getActiveSession(context: context) else {
         print(
@@ -357,103 +330,46 @@ class StrategyManager: ObservableObject {
     }
   }
 
+  /// Emergency releases belong to the running session, so the allowance means
+  /// "mistakes I can make during this stretch" and refills by starting again
+  /// rather than by waiting out a calendar period.
   func getRemainingEmergencyUnblocks() -> Int {
-    return emergencyUnblocksRemaining
+    guard let session = activeSession else { return 0 }
+    let policy = session.blockedProfile.method.emergency
+    return max(policy.effectiveMaxUses - session.emergencyUsedCount, 0)
   }
 
   func emergencyUnblock(context: ModelContext) {
-    // Do not allow emergency unblocks if there are no remaining
-    if emergencyUnblocksRemaining == 0 {
-      return
-    }
+    guard let activeSession = getActiveSession(context: context) else { return }
 
-    // Do not allow emergency unblocks if there is no active session
-    guard let activeSession = getActiveSession(context: context) else {
-      return
-    }
+    let policy = activeSession.blockedProfile.method.emergency
+    guard policy.effectiveMaxUses - activeSession.emergencyUsedCount > 0 else { return }
 
-    // Stop the active session using the manual strategy, by passes any other strategy in view
-    let manualStrategy = getStrategy(id: ManualBlockingStrategy.id, context: context)
-    _ = manualStrategy.stopBlocking(
-      context: context,
-      session: activeSession
-    )
+    activeSession.emergencyUsedCount += 1
 
-    // Do end sections for the profile
+    // End the session directly rather than through the profile's stop rule,
+    // which is the whole point of an emergency release.
+    SoftUnblockGrantScheduler.stopAll(sessionId: activeSession.id)
+    SoftUnblockGrantStore.endSession(sessionId: activeSession.id)
+    UsageLimitScheduler.end(profileId: activeSession.blockedProfile.id)
+    activeSession.endSession()
+    try? context.save()
+    appBlocker.deactivateRestrictions()
+
     self.liveActivityManager.endSessionActivity()
     self.scheduleReminder(profile: activeSession.blockedProfile)
     self.stopTimer()
+    self.activeSession = nil
 
-    // Decrement the remaining emergency unblocks
-    emergencyUnblocksRemaining -= 1
-
-    // Refresh widgets when emergency unblock ends session
     WidgetCenter.shared.reloadTimelines(ofKind: "ProfileControlWidget")
   }
 
-  func resetEmergencyUnblocks() {
-    emergencyUnblocksRemaining = 3
-    lastEmergencyUnblocksResetDateTimestamp = Date().timeIntervalSinceReferenceDate
+  static func strategy(for method: BlockingMethod) -> BlockingStrategy {
+    return ConfigurableBlockingStrategy(method: method)
   }
 
-  func checkAndResetEmergencyUnblocks() {
-    // Initialize the last reset date if it hasn't been set
-    if lastEmergencyUnblocksResetDateTimestamp == 0 {
-      lastEmergencyUnblocksResetDateTimestamp = Date().timeIntervalSinceReferenceDate
-      return
-    }
-
-    let lastResetDate = Date(
-      timeIntervalSinceReferenceDate: lastEmergencyUnblocksResetDateTimestamp)
-    let weeksInSeconds: TimeInterval = TimeInterval(
-      emergencyUnblocksResetPeriodInWeeks * 7 * 24 * 60 * 60)
-    let elapsedTime = Date().timeIntervalSince(lastResetDate)
-
-    // Check if the reset period has elapsed
-    if elapsedTime >= weeksInSeconds {
-      emergencyUnblocksRemaining = 3
-      lastEmergencyUnblocksResetDateTimestamp = Date().timeIntervalSinceReferenceDate
-    }
-  }
-
-  func getNextResetDate() -> Date? {
-    guard lastEmergencyUnblocksResetDateTimestamp > 0 else {
-      return nil
-    }
-
-    let lastResetDate = Date(
-      timeIntervalSinceReferenceDate: lastEmergencyUnblocksResetDateTimestamp)
-    let calendar = Calendar.current
-    return calendar.date(
-      byAdding: .weekOfYear,
-      value: emergencyUnblocksResetPeriodInWeeks,
-      to: lastResetDate
-    )
-  }
-
-  func getResetPeriodInWeeks() -> Int {
-    return emergencyUnblocksResetPeriodInWeeks
-  }
-
-  func setResetPeriodInWeeks(_ weeks: Int) {
-    emergencyUnblocksResetPeriodInWeeks = weeks
-    lastEmergencyUnblocksResetDateTimestamp = Date().timeIntervalSinceReferenceDate
-  }
-
-  static func getStrategyFromId(id: String) -> BlockingStrategy {
-    if let strategy = availableStrategies.first(
-      where: {
-        $0.getIdentifier() == id
-      })
-    {
-      return strategy
-    } else {
-      return NFCBlockingStrategy()
-    }
-  }
-
-  private func getStrategy(id: String, context: ModelContext) -> BlockingStrategy {
-    var strategy = StrategyManager.getStrategyFromId(id: id)
+  private func getStrategy(context: ModelContext) -> BlockingStrategy {
+    var strategy: BlockingStrategy = ConfigurableBlockingStrategy()
 
     strategy.onSessionCreation = { session in
       switch session {
@@ -679,20 +595,18 @@ class StrategyManager: ObservableObject {
       return
     }
 
-    if let strategyId = definedProfile.blockingStrategyId {
-      let strategy = getStrategy(id: strategyId, context: context)
-      let view = strategy.startBlocking(
-        context: context,
-        profile: definedProfile,
-        forceStart: false
-      )
+    let strategy = getStrategy(context: context)
+    let view = strategy.startBlocking(
+      context: context,
+      profile: definedProfile,
+      forceStart: false
+    )
 
-      if let customView = view {
-        presentCustomStrategyView(
-          customView,
-          presentationDetents: strategy.startViewPresentationDetents
-        )
-      }
+    if let customView = view {
+      presentCustomStrategyView(
+        customView,
+        presentationDetents: strategy.startViewPresentationDetents
+      )
     }
   }
 
@@ -704,16 +618,14 @@ class StrategyManager: ObservableObject {
       return
     }
 
-    if let strategyId = session.blockedProfile.blockingStrategyId {
-      let strategy = getStrategy(id: strategyId, context: context)
-      let view = strategy.stopBlocking(context: context, session: session)
+    let strategy = getStrategy(context: context)
+    let view = strategy.stopBlocking(context: context, session: session)
 
-      if let customView = view {
-        presentCustomStrategyView(
-          customView,
-          presentationDetents: [.medium, .large]
-        )
-      }
+    if let customView = view {
+      presentCustomStrategyView(
+        customView,
+        presentationDetents: [.medium, .large]
+      )
     }
   }
 

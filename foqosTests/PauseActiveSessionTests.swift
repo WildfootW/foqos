@@ -26,7 +26,7 @@ final class PauseActiveSessionTests: XCTestCase {
   func testNFCPauseStrategySchedulesPause() throws {
     let context = try makeContext()
     let profile = try makeActiveSession(
-      strategyId: NFCPauseTimerBlockingStrategy.id,
+      strategyId: "session-tag",
       context: context
     ).blockedProfile
     var scheduledProfileId: UUID?
@@ -43,7 +43,7 @@ final class PauseActiveSessionTests: XCTestCase {
   func testQRPauseStrategySchedulesPause() throws {
     let context = try makeContext()
     let profile = try makeActiveSession(
-      strategyId: QRPauseTimerBlockingStrategy.id,
+      strategyId: "session-tag",
       context: context
     ).blockedProfile
     var scheduledProfileId: UUID?
@@ -72,17 +72,15 @@ final class PauseActiveSessionTests: XCTestCase {
     XCTAssertFalse(didSchedule)
   }
 
-  func testUnsupportedStrategiesThrow() throws {
-    let unsupportedStrategyIds = [
-      ManualBlockingStrategy.id,
-      NFCTimerBlockingStrategy.id,
-      UUID().uuidString,
-    ]
-
-    for strategyId in unsupportedStrategyIds {
+  func testProfilesWithoutReleasesThrow() throws {
+    for strategyId in ["session-tag", UUID().uuidString] {
       SharedData.flushActiveSession()
       let context = try makeContext()
-      _ = try makeActiveSession(strategyId: strategyId, context: context)
+      _ = try makeActiveSession(
+        strategyId: strategyId,
+        includePauseConfiguration: false,
+        context: context
+      )
 
       XCTAssertThrowsError(
         try StrategyManager().pauseActiveSessionFromBackground(
@@ -101,7 +99,7 @@ final class PauseActiveSessionTests: XCTestCase {
   func testAlreadyPausedSessionThrows() throws {
     let context = try makeContext()
     let session = try makeActiveSession(
-      strategyId: NFCPauseTimerBlockingStrategy.id,
+      strategyId: "session-tag",
       context: context
     )
     session.startPause()
@@ -123,7 +121,7 @@ final class PauseActiveSessionTests: XCTestCase {
   func testActiveBreakThrows() throws {
     let context = try makeContext()
     let session = try makeActiveSession(
-      strategyId: NFCPauseTimerBlockingStrategy.id,
+      strategyId: "session-tag",
       enableBreaks: true,
       context: context
     )
@@ -143,11 +141,10 @@ final class PauseActiveSessionTests: XCTestCase {
     }
   }
 
-  func testMissingPauseConfigurationUsesDefaultDuration() throws {
+  func testReleaseLengthDefaultsToFifteenMinutes() throws {
     let context = try makeContext()
     let profile = try makeActiveSession(
-      strategyId: NFCPauseTimerBlockingStrategy.id,
-      includePauseConfiguration: false,
+      strategyId: "session-tag",
       context: context
     ).blockedProfile
     var scheduledProfileId: UUID?
@@ -156,22 +153,15 @@ final class PauseActiveSessionTests: XCTestCase {
       context: context,
       schedulePause: { scheduledProfileId = $0.id }
     )
-    let pauseData = StrategyPauseTimerData.toStrategyPauseTimerData(
-      from: profile.strategyData
-    )
-
     XCTAssertEqual(profileName, profile.name)
     XCTAssertEqual(scheduledProfileId, profile.id)
-    XCTAssertEqual(
-      pauseData.pauseDurationInMinutes,
-      StrategyPauseTimerData.defaultPauseDurationInMinutes
-    )
+    XCTAssertEqual(profile.method.interruption.releaseMinutes, 15)
   }
 
   func testSchedulerFailureThrowsLocalizedError() throws {
     let context = try makeContext()
     _ = try makeActiveSession(
-      strategyId: NFCPauseTimerBlockingStrategy.id,
+      strategyId: "session-tag",
       context: context
     )
 
@@ -207,16 +197,14 @@ final class PauseActiveSessionTests: XCTestCase {
     enableBreaks: Bool = false,
     context: ModelContext
   ) throws -> BlockedProfileSession {
-    let strategyData =
-      includePauseConfiguration
-      ? StrategyPauseTimerData.toData(
-        from: StrategyPauseTimerData(pauseDurationInMinutes: 15)
-      ) : nil
     let profile = BlockedProfiles(
       name: "Focus",
-      blockingStrategyId: strategyId,
-      strategyData: strategyData,
-      enableBreaks: enableBreaks
+      enableBreaks: enableBreaks,
+      blockingMethod: BlockingMethod(
+        interruption: includePauseConfiguration
+          ? .timedBreak(minutes: 15, allowMultiple: false)
+          : .none
+      )
     )
     context.insert(profile)
 

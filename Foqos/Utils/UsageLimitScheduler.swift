@@ -8,149 +8,121 @@ private let log = Logger(
   category: "UsageLimitScheduler"
 )
 
-/// Main-app side of the daily usage limit feature: keeps the DeviceActivity
-/// threshold monitoring in sync with each profile's settings, and issues the
-/// short unlock grants after a successful NFC/QR scan.
+/// Drives `EnforcementMode.usageAllowance`: the apps stay usable until they
+/// have been used for the allowance, then they lock until the window restarts
+/// or someone earns a release.
+///
+/// Monitoring is tied to the session, not to saving the profile, so an
+/// allowance only counts while the profile is actually running.
 enum UsageLimitScheduler {
-  /// Everything monitoring depends on; when this changes the daily activity
-  /// is restarted with fresh parameters.
-  private struct ConfigFingerprint: Codable, Equatable {
-    let settings: UsageLimitSettings
-    let selection: FamilyActivitySelection
-  }
+  // MARK: - Session lifecycle
 
-  // MARK: - Sync
-
-  static func syncAll(profiles: [BlockedProfiles]) {
-    for profile in profiles {
-      if profile.usageLimit?.isEnabled == true {
-        BlockedProfiles.updateSnapshot(for: profile)
-        sync(snapshot: BlockedProfiles.getSnapshot(for: profile))
-      } else if UsageLimitState.storedConfigFingerprint(profileId: profile.id) != nil {
-        teardown(profileId: profile.id)
-      }
-    }
-  }
-
-  static func sync(for profile: BlockedProfiles) {
-    if profile.usageLimit?.isEnabled == true {
-      sync(snapshot: BlockedProfiles.getSnapshot(for: profile))
-    } else {
-      teardown(profileId: profile.id)
-    }
-  }
-
-  static func sync(snapshot: SharedData.ProfileSnapshot) {
-    guard let settings = snapshot.usageLimit,
-      settings.isEnabled,
+  /// Starts (or refreshes) threshold monitoring for a session that just began.
+  /// Does nothing for profiles that block immediately.
+  static func begin(for snapshot: SharedData.ProfileSnapshot) {
+    guard let allowance = snapshot.method.enforcement.allowanceMinutes,
       !snapshot.enableAllowMode
     else {
-      teardown(profileId: snapshot.id)
+      end(profileId: snapshot.id)
       return
     }
-
-    let fingerprint = try? JSONEncoder().encode(
-      ConfigFingerprint(settings: settings, selection: snapshot.selectedActivity)
-    )
 
     let center = DeviceActivityCenter()
     let activityName = UsageLimitDailyTimerActivity()
       .getDeviceActivityName(from: snapshot.id.uuidString)
-
-    if center.activities.contains(activityName),
-      let fingerprint,
-      UsageLimitState.storedConfigFingerprint(profileId: snapshot.id) == fingerprint
-    {
-      return
-    }
 
     let selection = snapshot.selectedActivity
     let event = DeviceActivityEvent(
       applications: selection.applicationTokens,
       categories: selection.categoryTokens,
       webDomains: [],
-      threshold: DateComponents(minute: settings.dailyLimitInMinutes),
+      threshold: DateComponents(minute: allowance),
       includesPastActivity: true
-    )
-    let schedule = DeviceActivitySchedule(
-      intervalStart: DateComponents(hour: 0, minute: 0, second: 0),
-      intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
-      repeats: true
     )
 
     center.stopMonitoring([activityName])
     do {
       try center.startMonitoring(
         activityName,
-        during: schedule,
+        during: measurementWindow(for: snapshot),
         events: [UsageLimitDailyTimerActivity.thresholdEventName: event]
       )
-      if let fingerprint {
-        UsageLimitState.setConfigFingerprint(fingerprint, profileId: snapshot.id)
-      }
-      log.info(
-        "Monitoring daily usage limit of \(settings.dailyLimitInMinutes)m for \(snapshot.id.uuidString)"
-      )
+      UsageLimitState.clearLock(profileId: snapshot.id)
+      UsageLimitState.clearGrant(profileId: snapshot.id)
+      UsageLimitState.clearShield(profileId: snapshot.id)
+      log.info("Watching a \(allowance)m allowance for \(snapshot.id.uuidString)")
     } catch {
-      log.error(
-        "Failed to start usage limit monitoring: \(error.localizedDescription)"
-      )
+      log.error("Could not watch the allowance: \(error.localizedDescription)")
     }
   }
 
-  static func teardown(profileId: UUID) {
+  /// Stops monitoring and lifts anything this profile was holding.
+  static func end(profileId: UUID) {
     let center = DeviceActivityCenter()
     let names = [
       UsageLimitDailyTimerActivity().getDeviceActivityName(from: profileId.uuidString),
       UsageLimitRelockTimerActivity().getDeviceActivityName(from: profileId.uuidString),
     ]
-    let toStop = center.activities.filter { names.contains($0) }
-    if !toStop.isEmpty {
-      center.stopMonitoring(toStop)
+    let running = center.activities.filter { names.contains($0) }
+    if !running.isEmpty {
+      center.stopMonitoring(running)
     }
 
     UsageLimitState.clearLock(profileId: profileId)
     UsageLimitState.clearGrant(profileId: profileId)
     UsageLimitState.clearShield(profileId: profileId)
-    UsageLimitState.clearConfigFingerprint(profileId: profileId)
   }
 
-  // MARK: - Temporary unlock
+  /// The window the allowance is measured over, and therefore when it resets.
+  /// A profile with a schedule reuses that window - an 8 PM to 6 AM schedule
+  /// gives an overnight allowance that refills at 6 AM - and everything else
+  /// falls back to a plain day.
+  private static func measurementWindow(
+    for snapshot: SharedData.ProfileSnapshot
+  ) -> DeviceActivitySchedule {
+    if let schedule = snapshot.schedule, schedule.isActive {
+      return DeviceActivitySchedule(
+        intervalStart: DateComponents(
+          hour: schedule.startHour, minute: schedule.startMinute),
+        intervalEnd: DateComponents(hour: schedule.endHour, minute: schedule.endMinute),
+        repeats: true
+      )
+    }
 
-  /// Lifts the shield for the profile's grant duration and schedules the
-  /// automatic re-lock. Returns the expiry date on success.
+    return DeviceActivitySchedule(
+      intervalStart: DateComponents(hour: 0, minute: 0, second: 0),
+      intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
+      repeats: true
+    )
+  }
+
+  // MARK: - Releases
+
+  /// Lifts the shield for the profile's release duration and schedules the
+  /// automatic re-lock. Returns when access expires.
   @discardableResult
   static func grantTemporaryUnlock(
     for snapshot: SharedData.ProfileSnapshot
   ) throws -> Date {
-    let settings = snapshot.usageLimit ?? UsageLimitSettings()
+    let minutes = snapshot.method.interruption.releaseMinutes ?? 5
     let now = Date()
-    let expiry = now.addingTimeInterval(
-      TimeInterval(settings.unlockDurationInMinutes * 60)
-    )
+    let expiry = now.addingTimeInterval(TimeInterval(minutes * 60))
 
     let center = DeviceActivityCenter()
     let activityName = UsageLimitRelockTimerActivity()
       .getDeviceActivityName(from: snapshot.id.uuidString)
 
-    // Same trick as the soft-unblock scheduler: anchor the interval start at
-    // midnight so the schedule is comfortably longer than the 15 minute
-    // minimum, and let intervalDidEnd fire at the grant expiry.
+    // Anchoring the interval at midnight keeps it comfortably longer than the
+    // fifteen minute minimum a schedule has to span; the end is what matters.
     let calendar = Calendar.current
     let components: Set<Calendar.Component> = [
       .year, .month, .day, .hour, .minute, .second,
     ]
-    let intervalStart = calendar.dateComponents(
-      components,
-      from: calendar.startOfDay(for: now)
-    )
-    let intervalEnd = calendar.dateComponents(
-      components,
-      from: max(expiry, now.addingTimeInterval(60))
-    )
     let schedule = DeviceActivitySchedule(
-      intervalStart: intervalStart,
-      intervalEnd: intervalEnd,
+      intervalStart: calendar.dateComponents(
+        components, from: calendar.startOfDay(for: now)),
+      intervalEnd: calendar.dateComponents(
+        components, from: max(expiry, now.addingTimeInterval(60))),
       repeats: false
     )
 
@@ -160,9 +132,7 @@ enum UsageLimitScheduler {
     UsageLimitState.setGrantExpiry(expiry, profileId: snapshot.id)
     UsageLimitState.clearShield(profileId: snapshot.id)
 
-    log.info(
-      "Granted usage limit unlock for \(snapshot.id.uuidString) until \(expiry)"
-    )
+    log.info("Released \(snapshot.id.uuidString) until \(expiry)")
     return expiry
   }
 }
