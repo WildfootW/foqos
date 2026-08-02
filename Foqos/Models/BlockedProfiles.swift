@@ -325,7 +325,7 @@ class BlockedProfiles {
     DeviceActivityCenterUtil.removeScheduleTimerActivities(for: profile)
 
     // Remove any usage limit monitoring and shields
-    UsageLimitScheduler.teardown(profileId: profile.id)
+    UsageLimitScheduler.end(profileId: profile.id)
 
     // Then delete the profile
     context.delete(profile)
