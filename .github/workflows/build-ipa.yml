@@ -130,8 +130,10 @@ jobs:
           PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILE_DIR"
 
-          echo "$PROVISIONING_PROFILES_TAR_BASE64" | base64 -d > "$RUNNER_TEMP/profiles.tar"
-          tar -xf "$RUNNER_TEMP/profiles.tar" -C "$RUNNER_TEMP"
+          # Gzipped because the five profiles share enough certificate and
+          # plist boilerplate to blow past GitHub's 48 KB secret limit raw.
+          echo "$PROVISIONING_PROFILES_TAR_BASE64" | base64 -d > "$RUNNER_TEMP/profiles.tar.gz"
+          tar -xzf "$RUNNER_TEMP/profiles.tar.gz" -C "$RUNNER_TEMP"
           cp "$RUNNER_TEMP"/profiles/*.mobileprovision "$PROFILE_DIR/"
 
           ls -1 "$PROFILE_DIR"
