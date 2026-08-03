@@ -3,13 +3,12 @@ import SwiftData
 import SwiftUI
 
 private enum GuidedProfileStep: Int, CaseIterable, Identifiable {
-  case name
-  case strategy
   case apps
-  case domains
-  case strictUnlocks
-  case schedule
+  case strategy
+  case start
   case breaks
+  case stop
+  case whileRunning
   case strictSafeguards
   case sessionSafeguards
   case notifications
@@ -19,92 +18,60 @@ private enum GuidedProfileStep: Int, CaseIterable, Identifiable {
 
   var title: String {
     switch self {
-    case .name:
-      return "Name"
-    case .strategy:
-      return "Method"
-    case .apps:
-      return "Apps"
-    case .domains:
-      return "Websites"
-    case .strictUnlocks:
-      return "Codes"
-    case .schedule:
-      return "Schedule"
-    case .breaks:
-      return "Breaks"
-    case .strictSafeguards:
-      return "Protection"
-    case .sessionSafeguards:
-      return "Session"
-    case .notifications:
-      return "Notifications"
-    case .review:
-      return "Review"
+    case .apps: return "Apps"
+    case .strategy: return "Strategy"
+    case .start: return "Start"
+    case .breaks: return "Breaks"
+    case .stop: return "Stop"
+    case .whileRunning: return "Running"
+    case .strictSafeguards: return "Protection"
+    case .sessionSafeguards: return "Session"
+    case .notifications: return "Notifications"
+    case .review: return "Review"
     }
   }
 
   var introTitle: String {
     switch self {
-    case .name:
-      return "Name this profile"
-    case .strategy:
-      return "Choose how it starts and stops"
-    case .apps:
-      return "Choose apps and how to block them"
-    case .domains:
-      return "Choose domains and how to block them"
-    case .strictUnlocks:
-      return "Register the codes it scans"
-    case .schedule:
-      return "Add a schedule"
-    case .breaks:
-      return "Allow breaks"
-    case .strictSafeguards:
-      return "Choose session protection"
-    case .sessionSafeguards:
-      return "Choose session controls"
-    case .notifications:
-      return "Set notifications"
-    case .review:
-      return "Review your profile"
+    case .apps: return "Choose what to block"
+    case .strategy: return "Pick a starting point"
+    case .start: return "How does it start?"
+    case .breaks: return "Can you take a break?"
+    case .stop: return "How does it end?"
+    case .whileRunning: return "What happens while it runs?"
+    case .strictSafeguards: return "Choose session protection"
+    case .sessionSafeguards: return "Choose session controls"
+    case .notifications: return "Set notifications"
+    case .review: return "Name it and review"
     }
   }
 
   var introDescription: String {
     switch self {
-    case .name:
-      return "Profiles group the apps, websites, schedules, and rules you want to use together."
-    case .strategy:
-      return
-        "Pick the blocking method that fits this profile. "
-        + "You can mix and match how you want to start and stop."
     case .apps:
-      return "Select the apps or categories this profile should restrict or allow."
-    case .domains:
-      return "Add specific domains and decide whether Safari website blocking applies."
-    case .strictUnlocks:
-      return
-        "Some strategies let any NFC tag, QR code, or barcode unlock profiles. "
-        + "Physical unlocks require a specific tag or code. You can add more than one."
-    case .schedule:
-      return "Schedules can start this profile automatically on selected days."
+      return "Pick the apps and websites this profile covers. They share one set of rules."
+    case .strategy:
+      return "These fill in everything at once. Adjust any of it in the next few steps."
+    case .start:
+      return "A session can begin with a tap, a scan, or on a schedule."
     case .breaks:
-      return "Timed breaks let you pause once during a session without ending the profile."
+      return "Decide whether the block can lift for a few minutes without ending the session."
+    case .stop:
+      return "Decide how you get out, and whether it ends on its own."
+    case .whileRunning:
+      return "Block everything from the start, or allow a daily amount before locking."
     case .strictSafeguards:
-      return
-        "These settings make it harder to work around restrictions "
-        + "by deleting or installing apps."
+      return "Stop apps being deleted or installed while a session runs."
     case .sessionSafeguards:
-      return
-        "Control how active sessions can be stopped and whether emergency unblocks are allowed."
+      return "Control what can end a session from outside the app."
     case .notifications:
-      return "Live Activities and reminders can help you manage your session."
+      return "Show progress on the Lock Screen and get reminders."
     case .review:
-      return "Create the profile now, or go back to adjust any section."
+      return "A name is filled in for you. Change it if you like."
     }
   }
 }
+
 
 struct GuidedBlockedProfileCreationView: View {
   @Environment(\.modelContext) private var modelContext
@@ -115,10 +82,9 @@ struct GuidedBlockedProfileCreationView: View {
 
   @StateObject private var draft = BlockedProfileDraft()
 
-  @State private var currentStep: GuidedProfileStep = .name
+  @State private var currentStep: GuidedProfileStep = .apps
   @State private var showingActivityPicker = false
   @State private var showingDomainPicker = false
-  @State private var showingSchedulePicker = false
   @State private var alertIdentifier: AlertIdentifier?
   @State private var navigationDirection: CGFloat = 1
 
@@ -137,7 +103,7 @@ struct GuidedBlockedProfileCreationView: View {
   }
 
   private var canContinue: Bool {
-    return currentStep != .name || draft.isValid
+    return currentStep != .review || draft.isValid
   }
 
   private var stepAnimation: Animation {
@@ -210,12 +176,6 @@ struct GuidedBlockedProfileCreationView: View {
           allowMode: draft.enableAllowModeDomain
         )
       }
-      .sheet(isPresented: $showingSchedulePicker) {
-        SchedulePicker(
-          schedule: $draft.schedule,
-          isPresented: $showingSchedulePicker
-        )
-      }
       .alert(item: $alertIdentifier) { alert in
         Alert(
           title: Text("Error"),
@@ -255,18 +215,11 @@ struct GuidedBlockedProfileCreationView: View {
   }
 
   private var currentStepIntroTitle: String {
-    if currentStep == .breaks && !draft.selectedStrategyAllowsTimedBreaks {
-      return "Breaks are off"
-    }
 
     return currentStep.introTitle
   }
 
   private var currentStepIntroDescription: String {
-    if currentStep == .breaks && !draft.selectedStrategyAllowsTimedBreaks {
-      return
-        "This profile already opens apps briefly on demand, so a separate pool of break time is not needed."
-    }
 
     return currentStep.introDescription
   }
@@ -274,44 +227,6 @@ struct GuidedBlockedProfileCreationView: View {
   @ViewBuilder
   private var stepContent: some View {
     switch currentStep {
-    case .name:
-      guidedCard(title: "Name") {
-        BlockedProfileNameFields(
-          draft: draft,
-          disabled: false,
-          showsFieldLabels: false
-        )
-      }
-
-    case .strategy:
-      guidedCard(title: "Blocking Method") {
-        ForEach(BlockingMethodPreset.all) { preset in
-          Button {
-            draft.method = preset.method
-          } label: {
-            HStack(spacing: 12) {
-              Image(systemName: preset.symbolName)
-                .frame(width: 24)
-                .foregroundStyle(
-                  draft.method == preset.method ? Color.accentColor : .secondary)
-              VStack(alignment: .leading, spacing: 2) {
-                Text(preset.name)
-                  .font(.subheadline).fontWeight(.semibold)
-                  .foregroundStyle(.primary)
-                Text(preset.detail)
-                  .font(.caption).foregroundStyle(.secondary)
-                  .fixedSize(horizontal: false, vertical: true)
-              }
-              Spacer()
-              if draft.method == preset.method {
-                Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
-              }
-            }
-            .padding(.vertical, 6)
-          }
-        }
-      }
-
     case .apps:
       guidedCard(title: (draft.enableAllowMode ? "Allowed" : "Blocked") + " Apps") {
         BlockedProfileAppsFields(
@@ -320,10 +235,9 @@ struct GuidedBlockedProfileCreationView: View {
           disabled: false,
           showsSeparators: true
         )
-      }
 
-    case .domains:
-      guidedCard(title: (draft.enableAllowModeDomain ? "Allowed" : "Blocked") + " Domains") {
+        Divider()
+
         BlockedProfileDomainsFields(
           draft: draft,
           showingDomainPicker: $showingDomainPicker,
@@ -332,61 +246,37 @@ struct GuidedBlockedProfileCreationView: View {
         )
       }
 
-    case .strictUnlocks:
-      guidedCard(title: "Codes") {
-        if draft.method.start.isScan {
-          Text("To start")
-            .font(.caption).foregroundStyle(.secondary)
-          ScanCodeListView(
-            items: $draft.physicalUnblockItems,
-            role: .start,
-            allowedTypes: [draft.method.start == .nfc ? .nfc : .qrCode]
-          )
-        }
-
-        if draft.method.stop.isScan {
-          Text("To stop")
-            .font(.caption).foregroundStyle(.secondary)
-          ScanCodeListView(
-            items: $draft.physicalUnblockItems,
-            role: .stop,
-            allowedTypes: [draft.method.stop == .nfc ? .nfc : .qrCode]
-          )
-        }
-
-        if case .grantByScan = draft.method.interruption {
-          Text("To take a break")
-            .font(.caption).foregroundStyle(.secondary)
-          ScanCodeListView(
-            items: $draft.physicalUnblockItems,
-            role: .breakTime,
-            allowedTypes: [.nfc, .qrCode]
-          )
-        }
-
-        if !draft.method.needsPhysicalUnlockItems {
-          Text("This method never asks for a scan, so there is nothing to register.")
+    case .strategy:
+      guidedCard(title: "Strategy") {
+        ForEach(BlockingMethodPreset.Category.allCases) { category in
+          Text(category.title)
             .font(.caption)
             .foregroundStyle(.secondary)
+
+          ForEach(BlockingMethodPreset.inCategory(category)) { preset in
+            presetRow(preset)
+          }
         }
       }
 
-    case .schedule:
-      guidedCard(title: "Schedule") {
-        BlockedProfileScheduleFields(
-          draft: draft,
-          showingSchedulePicker: $showingSchedulePicker,
-          disabled: false
-        )
+    case .start:
+      guidedCard(title: "Start") {
+        BlockingStartFields(draft: draft)
       }
 
     case .breaks:
       guidedCard(title: "Breaks") {
-        BlockedProfileBreaksFields(
-          draft: draft,
-          disabled: false,
-          showsSeparators: true
-        )
+        BlockingBreakFields(draft: draft)
+      }
+
+    case .stop:
+      guidedCard(title: "Stop") {
+        BlockingStopFields(draft: draft)
+      }
+
+    case .whileRunning:
+      guidedCard(title: "While Running") {
+        BlockingEnforcementFields(draft: draft)
       }
 
     case .strictSafeguards:
@@ -405,6 +295,10 @@ struct GuidedBlockedProfileCreationView: View {
           disabled: false,
           showsSeparators: true
         )
+
+        Divider()
+
+        BlockingEmergencyFields(draft: draft)
       }
 
     case .notifications:
@@ -418,9 +312,54 @@ struct GuidedBlockedProfileCreationView: View {
       }
 
     case .review:
+      guidedCard(title: "Name") {
+        BlockedProfileNameFields(
+          draft: draft,
+          disabled: false,
+          showsFieldLabels: false
+        )
+        .onAppear {
+          if draft.name.trimmingCharacters(in: .whitespaces).isEmpty {
+            draft.name = draft.suggestedName
+          }
+        }
+      }
+
       guidedCard(title: "Summary") {
         GuidedProfileReviewContent(draft: draft)
       }
+    }
+  }
+
+  private func presetRow(_ preset: BlockingMethodPreset) -> some View {
+    let isSelected = draft.method == preset.method
+
+    return Button {
+      draft.method = preset.method
+    } label: {
+      HStack(spacing: 12) {
+        Image(preset.iconAssetName)
+          .resizable()
+          .scaledToFit()
+          .frame(width: 34, height: 34)
+
+        VStack(alignment: .leading, spacing: 2) {
+          Text(preset.name)
+            .font(.subheadline).fontWeight(.semibold)
+            .foregroundStyle(.primary)
+          Text(preset.detail)
+            .font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer()
+
+        if isSelected {
+          Image(systemName: "checkmark")
+            .foregroundStyle(preset.color)
+        }
+      }
+      .padding(.vertical, 6)
     }
   }
 
@@ -554,23 +493,12 @@ private struct GuidedProfileReviewContent: View {
   }
 
   private var scheduleSummary: String {
-    return draft.schedule.days.isEmpty ? "No schedule set" : draft.schedule.summaryText
+    guard draft.method.needsSchedule else { return "Not used" }
+    return draft.schedule.isActive ? draft.schedule.summaryText : "Not set"
   }
 
   private var breaksSummary: String {
-    if !draft.selectedStrategyAllowsTimedBreaks {
-      return "Not needed"
-    }
-
-    guard draft.enableBreaks else {
-      return "Disabled"
-    }
-
-    if draft.allowMultipleBreaks {
-      return "\(draft.breakTimeInMinutes) minutes, reusable"
-    }
-
-    return "\(draft.breakTimeInMinutes) minutes"
+    draft.method.interruption.title
   }
 
   private var safeguardsSummary: String {

@@ -218,8 +218,7 @@ class StrategyManager: ObservableObject {
           return
         }
 
-        profile.method.stop = .timer
-        profile.method.stopTimerMinutes = duration
+        profile.method.autoEnd = .afterMinutes(duration)
         profile.updatedAt = Date()
         BlockedProfiles.updateSnapshot(for: profile)
         try context.save()

@@ -51,12 +51,12 @@ enum SessionTimeCalculator {
   }
 
   static func isTimerSession(_ session: BlockedProfileSession) -> Bool {
-    session.blockedProfile.method.stop == .timer
+    session.blockedProfile.method.autoEnd.minutes != nil
   }
 
   static func timerDurationInSeconds(for session: BlockedProfileSession) -> TimeInterval? {
-    guard session.blockedProfile.method.stop == .timer else { return nil }
-    return TimeInterval(session.blockedProfile.method.stopTimerMinutes * 60)
+    guard let minutes = session.blockedProfile.method.autoEnd.minutes else { return nil }
+    return TimeInterval(minutes * 60)
   }
 
   private static func isScheduledSession(_ session: BlockedProfileSession) -> Bool {

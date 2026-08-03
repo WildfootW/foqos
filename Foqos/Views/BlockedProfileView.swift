@@ -35,8 +35,6 @@ struct BlockedProfileView: View {
   // Sheet for domain picker
   @State private var showingDomainPicker = false
 
-  // Sheet for schedule picker
-  @State private var showingSchedulePicker = false
 
   // Alert management
   @State private var alertIdentifier: AlertIdentifier?
@@ -99,14 +97,6 @@ struct BlockedProfileView: View {
           showingDomainPicker: $showingDomainPicker,
           disabled: isBlocking
         )
-
-        BlockedProfileScheduleSection(
-          draft: draft,
-          showingSchedulePicker: $showingSchedulePicker,
-          disabled: isBlocking
-        )
-
-        BlockedProfileBreaksSection(draft: draft, disabled: isBlocking)
 
         BlockedProfileStrictSafeguardsSection(draft: draft, disabled: isBlocking)
 
@@ -197,12 +187,6 @@ struct BlockedProfileView: View {
           domains: $draft.domains,
           isPresented: $showingDomainPicker,
           allowMode: draft.enableAllowModeDomain
-        )
-      }
-      .sheet(isPresented: $showingSchedulePicker) {
-        SchedulePicker(
-          schedule: $draft.schedule,
-          isPresented: $showingSchedulePicker
         )
       }
       .sheet(isPresented: $showingGeneratedQRCode) {

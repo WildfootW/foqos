@@ -185,67 +185,6 @@ struct BlockedProfileScheduleSection: View {
   }
 }
 
-struct BlockedProfileBreaksFields: View {
-  @ObservedObject var draft: BlockedProfileDraft
-  var disabled: Bool
-  var showsSeparators: Bool = false
-
-  @ViewBuilder
-  var body: some View {
-    if draft.selectedStrategyAllowsTimedBreaks {
-      CustomToggle(
-        title: "Allow Timed Breaks",
-        description:
-          "Take a break during your session. The break will automatically end after the selected duration.",
-        isOn: $draft.enableBreaks,
-        isDisabled: disabled
-      )
-
-      if draft.enableBreaks {
-        ProfileFieldDivider(isVisible: showsSeparators)
-
-        breakDurationPicker
-
-        ProfileFieldDivider(isVisible: showsSeparators)
-
-        CustomToggle(
-          title: "Allow Multiple Breaks",
-          description: "Take multiple breaks until your total break duration is used.",
-          isOn: $draft.allowMultipleBreaks,
-          isDisabled: disabled
-        )
-      }
-    } else {
-      ProfileFieldNotice(
-        title: "Breaks are off for Temporary Access",
-        message:
-          "This strategy already gives short opens for blocked apps and categories, so timed breaks are not needed for this profile."
-      )
-    }
-  }
-
-  private var breakDurationPicker: some View {
-    Picker("Break Duration", selection: $draft.breakTimeInMinutes) {
-      Text("5 minutes").tag(5)
-      Text("10 minutes").tag(10)
-      Text("15 minutes").tag(15)
-      Text("30 minutes").tag(30)
-    }
-    .disabled(disabled)
-  }
-}
-
-struct BlockedProfileBreaksSection: View {
-  @ObservedObject var draft: BlockedProfileDraft
-  var disabled: Bool
-
-  var body: some View {
-    Section("Breaks") {
-      BlockedProfileBreaksFields(draft: draft, disabled: disabled)
-    }
-  }
-}
-
 private struct ProfileFieldNotice: View {
   let title: String
   let message: String

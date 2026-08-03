@@ -15,9 +15,6 @@ class BlockedProfiles {
 
   var enableLiveActivity: Bool = false
   var reminderTimeInSeconds: UInt32?
-  var enableBreaks: Bool = false
-  var breakTimeInMinutes: Int = 15
-  var allowMultipleBreaks: Bool = false
   var enableStrictMode: Bool = false
   var enableBlockAppInstallation: Bool = false
   var enableAllowMode: Bool = false
@@ -74,6 +71,24 @@ class BlockedProfiles {
     return method.interruption == .none
   }
 
+  // Breaks used to be three stored flags edited in their own screen while the
+  // method separately claimed to describe them. The method is the only source
+  // now; these read through so the session machinery is untouched.
+  var enableBreaks: Bool {
+    if case .timedBreak = method.interruption { return true }
+    return false
+  }
+
+  var breakTimeInMinutes: Int {
+    if case .timedBreak(let minutes, _) = method.interruption { return minutes }
+    return 15
+  }
+
+  var allowMultipleBreaks: Bool {
+    if case .timedBreak(_, let allowMultiple) = method.interruption { return allowMultiple }
+    return false
+  }
+
   // MARK: - Physical Unblock Helpers
 
   /// Checks if a specific NFC tag or QR code can unblock this profile
@@ -117,9 +132,6 @@ class BlockedProfiles {
     enableLiveActivity: Bool = false,
     reminderTimeInSeconds: UInt32? = nil,
     customReminderMessage: String? = nil,
-    enableBreaks: Bool = false,
-    breakTimeInMinutes: Int = 15,
-    allowMultipleBreaks: Bool = false,
     enableStrictMode: Bool = false,
     enableBlockAppInstallation: Bool = false,
     enableAllowMode: Bool = false,
@@ -145,9 +157,6 @@ class BlockedProfiles {
     self.reminderTimeInSeconds = reminderTimeInSeconds
     self.customReminderMessage = customReminderMessage
     self.enableLiveActivity = enableLiveActivity
-    self.enableBreaks = enableBreaks
-    self.breakTimeInMinutes = breakTimeInMinutes
-    self.allowMultipleBreaks = allowMultipleBreaks
     self.enableStrictMode = enableStrictMode
     self.enableBlockAppInstallation = enableBlockAppInstallation
     self.enableAllowMode = enableAllowMode
@@ -165,8 +174,8 @@ class BlockedProfiles {
   }
 
   func showStopButton(elapsedTime: TimeInterval) -> Bool {
-    guard method.stop == .timer, method.hideStopUntilTimerEnds else { return true }
-    return elapsedTime >= Double(method.stopTimerMinutes * 60)
+    guard !method.allowsEarlyStop, let minutes = method.autoEnd.minutes else { return true }
+    return elapsedTime >= Double(minutes * 60)
   }
 
   static func fetchProfiles(in context: ModelContext) throws
@@ -206,9 +215,6 @@ class BlockedProfiles {
     enableLiveActivity: Bool? = nil,
     reminderTime: UInt32? = nil,
     customReminderMessage: String? = nil,
-    enableBreaks: Bool? = nil,
-    breakTimeInMinutes: Int? = nil,
-    allowMultipleBreaks: Bool? = nil,
     enableStrictMode: Bool? = nil,
     enableBlockAppInstallation: Bool? = nil,
     enableAllowMode: Bool? = nil,
@@ -235,17 +241,8 @@ class BlockedProfiles {
       profile.enableLiveActivity = newEnableLiveActivity
     }
 
-    if let newEnableBreaks = enableBreaks {
-      profile.enableBreaks = newEnableBreaks
-    }
 
-    if let newBreakTimeInMinutes = breakTimeInMinutes {
-      profile.breakTimeInMinutes = newBreakTimeInMinutes
-    }
 
-    if let newAllowMultipleBreaks = allowMultipleBreaks {
-      profile.allowMultipleBreaks = newAllowMultipleBreaks
-    }
 
     if let newEnableStrictMode = enableStrictMode {
       profile.enableStrictMode = newEnableStrictMode
@@ -356,9 +353,6 @@ class BlockedProfiles {
       enableLiveActivity: profile.enableLiveActivity,
       reminderTimeInSeconds: profile.reminderTimeInSeconds,
       customReminderMessage: profile.customReminderMessage,
-      enableBreaks: profile.enableBreaks,
-      breakTimeInMinutes: profile.breakTimeInMinutes,
-      allowMultipleBreaks: profile.allowMultipleBreaks,
       enableStrictMode: profile.enableStrictMode,
       enableBlockAppInstallation: profile.enableBlockAppInstallation,
       enableAllowMode: profile.enableAllowMode,
@@ -413,9 +407,6 @@ class BlockedProfiles {
     enableLiveActivity: Bool = false,
     reminderTimeInSeconds: UInt32? = nil,
     customReminderMessage: String = "",
-    enableBreaks: Bool = false,
-    breakTimeInMinutes: Int = 15,
-    allowMultipleBreaks: Bool = false,
     enableStrictMode: Bool = false,
     enableBlockAppInstallation: Bool = false,
     enableAllowMode: Bool = false,
@@ -437,9 +428,6 @@ class BlockedProfiles {
       enableLiveActivity: enableLiveActivity,
       reminderTimeInSeconds: reminderTimeInSeconds,
       customReminderMessage: customReminderMessage,
-      enableBreaks: enableBreaks,
-      breakTimeInMinutes: breakTimeInMinutes,
-      allowMultipleBreaks: allowMultipleBreaks,
       enableStrictMode: enableStrictMode,
       enableBlockAppInstallation: enableBlockAppInstallation,
       enableAllowMode: enableAllowMode,
@@ -478,9 +466,6 @@ class BlockedProfiles {
       enableLiveActivity: source.enableLiveActivity,
       reminderTimeInSeconds: source.reminderTimeInSeconds,
       customReminderMessage: source.customReminderMessage,
-      enableBreaks: source.enableBreaks,
-      breakTimeInMinutes: source.breakTimeInMinutes,
-      allowMultipleBreaks: source.allowMultipleBreaks,
       enableStrictMode: source.enableStrictMode,
       enableBlockAppInstallation: source.enableBlockAppInstallation,
       enableAllowMode: source.enableAllowMode,

@@ -181,7 +181,6 @@ struct HomeProfileLauncher: View {
         name: "Work Focus",
         enableLiveActivity: true,
         reminderTimeInSeconds: 3600,
-        enableBreaks: true,
         domains: ["example.com", "social.example"]
       ),
       displayTime: 3665,
@@ -200,7 +199,6 @@ struct HomeProfileLauncher: View {
         name: "Work Focus",
         enableLiveActivity: true,
         reminderTimeInSeconds: 3600,
-        enableBreaks: true,
         domains: ["example.com", "social.example"]
       ),
       displayTime: 900,

@@ -87,8 +87,7 @@ struct SessionDebugCard: View {
 
 #Preview("Active Session with Break") {
   let profile = BlockedProfiles(
-    name: "Deep Work",
-    enableBreaks: true
+    name: "Deep Work"
   )
   let session = BlockedProfileSession(
     tag: "nfc-scan",

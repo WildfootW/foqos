@@ -208,8 +208,7 @@ private struct InfoRow: View {
 
     init() {
       let profile = BlockedProfiles(
-        name: "Deep Work",
-        enableBreaks: true
+        name: "Deep Work"
       )
       let session = BlockedProfileSession(
         tag: "Focus Time",
@@ -237,8 +236,7 @@ private struct InfoRow: View {
 
     init() {
       let profile = BlockedProfiles(
-        name: "Study Session",
-        enableBreaks: true
+        name: "Study Session"
       )
       let session = BlockedProfileSession(
         tag: "Exam Prep",

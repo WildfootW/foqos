@@ -194,8 +194,7 @@ final class ConfigurableBlockingStrategy: BlockingStrategy {
     session: BlockedProfileSession
   ) -> (any View)? {
     switch session.blockedProfile.method.stop {
-    case .manual, .timer, .schedule:
-      // Timer and schedule stops also fire on their own; this is the early exit.
+    case .manual:
       end(context: context, session: session)
       return nil
     case .nfc:

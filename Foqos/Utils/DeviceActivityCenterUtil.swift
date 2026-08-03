@@ -69,8 +69,8 @@ class DeviceActivityCenterUtil {
   }
 
   static func startStrategyTimerActivity(for profile: BlockedProfiles) {
-    guard profile.method.stop == .timer else {
-      print("Profile \(profile.id.uuidString) does not stop on a timer")
+    guard let autoEndMinutes = profile.method.autoEnd.minutes else {
+      print("Profile \(profile.id.uuidString) has no automatic end")
       return
     }
 
@@ -80,7 +80,7 @@ class DeviceActivityCenterUtil {
       from: profile.id.uuidString)
 
     let (intervalStart, intervalEnd) = getTimeIntervalStartAndEnd(
-      from: TimeInterval(profile.method.stopTimerMinutes * 60))
+      from: TimeInterval(autoEndMinutes * 60))
 
     let deviceActivitySchedule = DeviceActivitySchedule(
       intervalStart: intervalStart,

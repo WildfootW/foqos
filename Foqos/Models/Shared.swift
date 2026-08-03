@@ -25,9 +25,6 @@ enum SharedData {
     var enableLiveActivity: Bool
     var reminderTimeInSeconds: UInt32?
     var customReminderMessage: String?
-    var enableBreaks: Bool
-    var breakTimeInMinutes: Int = 15
-    var allowMultipleBreaks: Bool? = nil
     var enableStrictMode: Bool
     var enableBlockAppInstallation: Bool = false
     var enableAllowMode: Bool
@@ -53,6 +50,21 @@ enum SharedData {
     var blockingMethod: BlockingMethod? = nil
 
     var method: BlockingMethod { blockingMethod ?? BlockingMethod() }
+
+    var enableBreaks: Bool {
+      if case .timedBreak = method.interruption { return true }
+      return false
+    }
+
+    var breakTimeInMinutes: Int {
+      if case .timedBreak(let minutes, _) = method.interruption { return minutes }
+      return 15
+    }
+
+    var allowMultipleBreaks: Bool? {
+      if case .timedBreak(_, let allowMultiple) = method.interruption { return allowMultiple }
+      return false
+    }
   }
 
   // MARK: – Serializable snapshot of a session (no profile object)

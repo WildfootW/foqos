@@ -87,7 +87,6 @@ struct ProfileDebugCard: View {
     enableLiveActivity: true,
     reminderTimeInSeconds: 3600,
     customReminderMessage: "Time to focus!",
-    enableBreaks: true,
     enableStrictMode: false,
     enableAllowMode: false,
     order: 0
@@ -102,7 +101,6 @@ struct ProfileDebugCard: View {
   let profile = BlockedProfiles(
     name: "Deep Work",
     enableLiveActivity: false,
-    enableBreaks: false,
     enableStrictMode: true,
     order: 1,
     physicalUnblockItems: [
@@ -127,7 +125,6 @@ struct ProfileDebugCard: View {
   let profile = BlockedProfiles(
     name: "Scheduled Focus",
     enableLiveActivity: true,
-    enableBreaks: true,
     order: 2,
     schedule: schedule,
     disableBackgroundStops: true
