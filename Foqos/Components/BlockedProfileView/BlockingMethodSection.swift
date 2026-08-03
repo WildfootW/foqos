@@ -1,166 +1,164 @@
 import SwiftUI
 
-/// One place to answer "how does this profile block", replacing a picker of
-/// twelve prebuilt strategies. The presets cover what most profiles want;
-/// Custom exposes the same choices the presets are made of.
+/// The five choices that make up a blocking method, laid out as themselves.
+///
+/// They used to be twelve prebuilt strategies behind one picker; naming each
+/// question and showing them all is the point of the change, so none of this
+/// hides behind a disclosure. Presets still exist, but as starting points in
+/// the guided creation flow rather than as the vocabulary here.
 struct BlockingMethodSection: View {
   @ObservedObject var draft: BlockedProfileDraft
   var disabled: Bool
 
-  @State private var showingCustom: Bool = false
-
   var body: some View {
     Section {
-      ForEach(BlockingMethodPreset.all) { preset in
-        presetRow(preset)
+      Picker("Start", selection: startBinding) {
+        ForEach(StartTrigger.allCases) { Text($0.title).tag($0) }
       }
 
-      DisclosureGroup("Custom", isExpanded: $showingCustom) {
-        customFields
+      Picker("Stop", selection: stopBinding) {
+        ForEach(StopTrigger.allCases) { Text($0.title).tag($0) }
       }
-      .disabled(disabled)
 
-      ForEach(draft.methodValidationIssues, id: \.self) { issue in
-        Label(issue.message, systemImage: "exclamationmark.triangle.fill")
-          .font(.caption)
-          .foregroundStyle(.orange)
+      if draft.method.stop == .timer {
+        Picker("Length", selection: timerMinutesBinding) {
+          ForEach([5, 10, 15, 25, 30, 45, 60, 90], id: \.self) {
+            Text("\($0) minutes").tag($0)
+          }
+        }
+
+        Toggle("Hide stop until it ends", isOn: hideStopBinding)
       }
     } header: {
-      Text("Blocking Method")
+      Text("Start & Stop")
     } footer: {
-      Text(draft.method.summary)
-    }
-    .onAppear {
-      showingCustom = BlockingMethodPreset.matching(draft.method) == nil
-    }
-  }
-
-  // MARK: - Presets
-
-  private func presetRow(_ preset: BlockingMethodPreset) -> some View {
-    let isSelected = draft.method == preset.method
-
-    return Button {
-      draft.method = preset.method
-      showingCustom = false
-    } label: {
-      HStack(spacing: 12) {
-        Image(systemName: preset.symbolName)
-          .font(.title3)
-          .frame(width: 28)
-          .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-
-        VStack(alignment: .leading, spacing: 2) {
-          Text(preset.name)
-            .font(.subheadline)
-            .fontWeight(.semibold)
-            .foregroundStyle(.primary)
-          Text(preset.detail)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-
-        Spacer()
-
-        if isSelected {
-          Image(systemName: "checkmark")
-            .foregroundStyle(Color.accentColor)
-        }
-      }
-      .padding(.vertical, 4)
+      Text(startStopFooter)
     }
     .disabled(disabled)
-  }
 
-  // MARK: - Custom
+    Section {
+      Picker("Apps are", selection: enforcementBinding) {
+        Text("Blocked right away").tag(EnforcementKind.blockImmediately)
+        Text("Usable up to a limit").tag(EnforcementKind.usageAllowance)
+      }
+      .pickerStyle(.inline)
+      .labelsHidden()
 
-  @ViewBuilder
-  private var customFields: some View {
-    Picker("Start", selection: startBinding) {
-      ForEach(StartTrigger.allCases) { Text($0.title).tag($0) }
+      if draft.method.enforcement.allowanceMinutes != nil {
+        Picker("Allowance", selection: allowanceMinutesBinding) {
+          ForEach(EnforcementMode.allowanceOptions, id: \.self) {
+            Text(allowanceLabel($0)).tag($0)
+          }
+        }
+      }
+    } header: {
+      Text("While Running")
+    } footer: {
+      Text(
+        draft.method.enforcement.allowanceMinutes == nil
+          ? "Everything selected is blocked for the whole session."
+          : "The apps stay usable until the allowance runs out, then they lock. "
+            + "It refills when the window starts again."
+      )
     }
+    .disabled(disabled)
 
-    Picker("Stop", selection: stopBinding) {
-      ForEach(StopTrigger.allCases) { Text($0.title).tag($0) }
-    }
+    Section {
+      Picker("Releases", selection: interruptionBinding) {
+        Text("None").tag(InterruptionKind.none)
+        Text("Timed breaks").tag(InterruptionKind.timedBreak)
+        Text("Tap to open briefly").tag(InterruptionKind.grantByButton)
+        Text("Scan to open briefly").tag(InterruptionKind.grantByScan)
+      }
+      .pickerStyle(.inline)
+      .labelsHidden()
 
-    if draft.method.stop == .timer {
-      Picker("Length", selection: timerMinutesBinding) {
-        ForEach([5, 10, 15, 25, 30, 45, 60, 90], id: \.self) {
-          Text("\($0) minutes").tag($0)
+      if draft.method.interruption != .none {
+        Picker("Length", selection: releaseMinutesBinding) {
+          ForEach(InterruptionMode.durationOptions, id: \.self) {
+            Text("\($0) minute\($0 == 1 ? "" : "s")").tag($0)
+          }
         }
       }
 
-      Toggle("Hide stop until it ends", isOn: hideStopBinding)
-    }
-
-    Picker("While running", selection: enforcementBinding) {
-      Text("Block right away").tag(EnforcementKind.blockImmediately)
-      Text("Allow a daily amount").tag(EnforcementKind.usageAllowance)
-    }
-
-    if draft.method.enforcement.allowanceMinutes != nil {
-      Picker("Daily allowance", selection: allowanceMinutesBinding) {
-        ForEach(EnforcementMode.allowanceOptions, id: \.self) {
-          Text($0 < 60 ? "\($0) minutes" : "\($0 / 60)h \($0 % 60 == 0 ? "" : "\($0 % 60)m")")
-            .tag($0)
-        }
-      }
-    }
-
-    Picker("Releases", selection: interruptionBinding) {
-      Text("None").tag(InterruptionKind.none)
-      Text("Timed breaks").tag(InterruptionKind.timedBreak)
-      Text("Tap to open briefly").tag(InterruptionKind.grantByButton)
-      Text("Scan to open briefly").tag(InterruptionKind.grantByScan)
-    }
-
-    if draft.method.interruption != .none {
-      Picker("Release length", selection: releaseMinutesBinding) {
-        ForEach(InterruptionMode.durationOptions, id: \.self) {
-          Text("\($0) minute\($0 == 1 ? "" : "s")").tag($0)
-        }
-      }
-    }
-
-    if case .grantByButton = draft.method.interruption {
-      Picker("Releases allowed", selection: releaseCountBinding) {
-        ForEach(Array(InterruptionMode.countRange), id: \.self) { Text("\($0)").tag($0) }
-      }
-    }
-
-    if case .grantByScan(_, let maxCount) = draft.method.interruption {
-      Toggle("Limit how many", isOn: limitScansBinding)
-      if maxCount != nil {
-        Picker("Scans allowed", selection: releaseCountBinding) {
+      if case .grantByButton = draft.method.interruption {
+        Picker("How many", selection: releaseCountBinding) {
           ForEach(Array(InterruptionMode.countRange), id: \.self) { Text("\($0)").tag($0) }
         }
       }
-    }
 
-    if case .timedBreak = draft.method.interruption {
-      Toggle("Split across several breaks", isOn: allowMultipleBreaksBinding)
-    }
+      if case .grantByScan(_, let maxCount) = draft.method.interruption {
+        Toggle("Limit how many", isOn: limitScansBinding)
+        if maxCount != nil {
+          Picker("How many", selection: releaseCountBinding) {
+            ForEach(Array(InterruptionMode.countRange), id: \.self) { Text("\($0)").tag($0) }
+          }
+        }
+      }
 
-    Toggle("Emergency releases", isOn: emergencyEnabledBinding)
-    if draft.method.emergency.isEnabled {
-      Picker("Per session", selection: emergencyCountBinding) {
-        ForEach(1...EmergencyPolicy.countRange.upperBound, id: \.self) {
-          Text("\($0)").tag($0)
+      if case .timedBreak = draft.method.interruption {
+        Toggle("Split across several breaks", isOn: allowMultipleBreaksBinding)
+      }
+    } header: {
+      Text("Releases")
+    } footer: {
+      Text(releasesFooter)
+    }
+    .disabled(disabled)
+
+    Section {
+      Toggle("Emergency releases", isOn: emergencyEnabledBinding)
+
+      if draft.method.emergency.isEnabled {
+        Picker("Per session", selection: emergencyCountBinding) {
+          ForEach(1...EmergencyPolicy.countRange.upperBound, id: \.self) {
+            Text("\($0)").tag($0)
+          }
+        }
+      }
+    } header: {
+      Text("Emergency")
+    } footer: {
+      Text("Breaking the glass ends the session outright. The count refills when you start again.")
+    }
+    .disabled(disabled)
+
+    if !draft.methodValidationIssues.isEmpty {
+      Section {
+        ForEach(draft.methodValidationIssues, id: \.self) { issue in
+          Label(issue.message, systemImage: "exclamationmark.triangle.fill")
+            .font(.caption)
+            .foregroundStyle(.orange)
         }
       }
     }
+  }
 
-    if draft.method.stopAndReleaseShareACredential {
-      Label(
-        "Stopping and releasing both take one scan, so stopping will ask for "
-          + "confirmation.",
-        systemImage: "info.circle"
-      )
-      .font(.caption)
-      .foregroundStyle(.secondary)
+  private var startStopFooter: String {
+    guard draft.method.stopAndReleaseShareACredential else {
+      return draft.method.summary
     }
+    return "Stopping and releasing both take one scan, so stopping asks for confirmation first."
+  }
+
+  private var releasesFooter: String {
+    switch draft.method.interruption {
+    case .none:
+      return "Nothing lifts the block until the session ends."
+    case .timedBreak:
+      return "A pool of break time you can spend during the session."
+    case .grantByButton:
+      return "A button on the block screen opens one app for a while."
+    case .grantByScan:
+      return "Opening an app costs a trip to one of this profile's Physical Unlocks."
+    }
+  }
+
+  private func allowanceLabel(_ minutes: Int) -> String {
+    guard minutes >= 60 else { return "\(minutes) minutes" }
+    let hours = minutes / 60
+    let rest = minutes % 60
+    return rest == 0 ? "\(hours) hour\(hours == 1 ? "" : "s")" : "\(hours)h \(rest)m"
   }
 
   // MARK: - Bindings
