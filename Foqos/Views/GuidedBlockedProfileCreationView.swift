@@ -28,7 +28,7 @@ private enum GuidedProfileStep: Int, CaseIterable, Identifiable {
     case .domains:
       return "Websites"
     case .strictUnlocks:
-      return "Unlocks"
+      return "Codes"
     case .schedule:
       return "Schedule"
     case .breaks:
@@ -55,7 +55,7 @@ private enum GuidedProfileStep: Int, CaseIterable, Identifiable {
     case .domains:
       return "Choose domains and how to block them"
     case .strictUnlocks:
-      return "Set physical unlocks"
+      return "Register the codes it scans"
     case .schedule:
       return "Add a schedule"
     case .breaks:
@@ -265,7 +265,7 @@ struct GuidedBlockedProfileCreationView: View {
   private var currentStepIntroDescription: String {
     if currentStep == .breaks && !draft.selectedStrategyAllowsTimedBreaks {
       return
-        "Temporary Access already gives short opens for blocked apps and categories, so timed breaks are not needed."
+        "This profile already opens apps briefly on demand, so a separate pool of break time is not needed."
     }
 
     return currentStep.introDescription
@@ -333,8 +333,42 @@ struct GuidedBlockedProfileCreationView: View {
       }
 
     case .strictUnlocks:
-      guidedCard(title: "Physical Unlocks") {
-        BlockedProfileStrictUnlocksFields(draft: draft, disabled: false)
+      guidedCard(title: "Codes") {
+        if draft.method.start.isScan {
+          Text("To start")
+            .font(.caption).foregroundStyle(.secondary)
+          ScanCodeListView(
+            items: $draft.physicalUnblockItems,
+            role: .start,
+            allowedTypes: [draft.method.start == .nfc ? .nfc : .qrCode]
+          )
+        }
+
+        if draft.method.stop.isScan {
+          Text("To stop")
+            .font(.caption).foregroundStyle(.secondary)
+          ScanCodeListView(
+            items: $draft.physicalUnblockItems,
+            role: .stop,
+            allowedTypes: [draft.method.stop == .nfc ? .nfc : .qrCode]
+          )
+        }
+
+        if case .grantByScan = draft.method.interruption {
+          Text("To take a break")
+            .font(.caption).foregroundStyle(.secondary)
+          ScanCodeListView(
+            items: $draft.physicalUnblockItems,
+            role: .breakTime,
+            allowedTypes: [.nfc, .qrCode]
+          )
+        }
+
+        if !draft.method.needsPhysicalUnlockItems {
+          Text("This method never asks for a scan, so there is nothing to register.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
       }
 
     case .schedule:

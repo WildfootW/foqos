@@ -170,8 +170,8 @@ struct UsageLimitHomeSection: View {
   }
 
   private func startUnlockScan(for profile: BlockedProfiles) {
-    let hasNFC = profile.hasPhysicalUnblockItem(ofType: .nfc)
-    let hasQR = profile.hasPhysicalUnblockItem(ofType: .qrCode)
+    let hasNFC = profile.hasCode(ofType: .nfc, for: .breakTime)
+    let hasQR = profile.hasCode(ofType: .qrCode, for: .breakTime)
 
     switch (hasNFC, hasQR) {
     case (true, true):
@@ -210,7 +210,7 @@ struct UsageLimitHomeSection: View {
     type: PhysicalUnblockItem.PhysicalUnblockType,
     profile: BlockedProfiles
   ) {
-    guard profile.canUnblock(withCode: code, type: type) else {
+    guard profile.accepts(code: code, type: type, for: .breakTime) else {
       showAlert(
         title: "Wrong code",
         message: "This \(type.displayName.lowercased()) can't unlock \(profile.name)."

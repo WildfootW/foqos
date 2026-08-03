@@ -16,8 +16,26 @@ struct BlockingMethodSection: View {
         ForEach(StartTrigger.allCases) { Text($0.title).tag($0) }
       }
 
+      if draft.method.start.isScan {
+        ScanCodeListView(
+          items: $draft.physicalUnblockItems,
+          role: .start,
+          allowedTypes: [draft.method.start == .nfc ? .nfc : .qrCode],
+          disabled: disabled
+        )
+      }
+
       Picker("Stop", selection: stopBinding) {
         ForEach(StopTrigger.allCases) { Text($0.title).tag($0) }
+      }
+
+      if draft.method.stop.isScan {
+        ScanCodeListView(
+          items: $draft.physicalUnblockItems,
+          role: .stop,
+          allowedTypes: [draft.method.stop == .nfc ? .nfc : .qrCode],
+          disabled: disabled
+        )
       }
 
       if draft.method.stop == .timer {
@@ -64,11 +82,11 @@ struct BlockingMethodSection: View {
     .disabled(disabled)
 
     Section {
-      Picker("Releases", selection: interruptionBinding) {
+      Picker("Breaks", selection: interruptionBinding) {
         Text("None").tag(InterruptionKind.none)
-        Text("Timed breaks").tag(InterruptionKind.timedBreak)
-        Text("Tap to open briefly").tag(InterruptionKind.grantByButton)
-        Text("Scan to open briefly").tag(InterruptionKind.grantByScan)
+        Text("Timed break").tag(InterruptionKind.timedBreak)
+        Text("Tap for a break").tag(InterruptionKind.grantByButton)
+        Text("Scan for a break").tag(InterruptionKind.grantByScan)
       }
       .pickerStyle(.inline)
       .labelsHidden()
@@ -99,10 +117,19 @@ struct BlockingMethodSection: View {
       if case .timedBreak = draft.method.interruption {
         Toggle("Split across several breaks", isOn: allowMultipleBreaksBinding)
       }
+
+      if case .grantByScan = draft.method.interruption {
+        ScanCodeListView(
+          items: $draft.physicalUnblockItems,
+          role: .breakTime,
+          allowedTypes: [.nfc, .qrCode],
+          disabled: disabled
+        )
+      }
     } header: {
-      Text("Releases")
+      Text("Breaks")
     } footer: {
-      Text(releasesFooter)
+      Text(breaksFooter)
     }
     .disabled(disabled)
 
@@ -138,10 +165,10 @@ struct BlockingMethodSection: View {
     guard draft.method.stopAndReleaseShareACredential else {
       return draft.method.summary
     }
-    return "Stopping and releasing both take one scan, so stopping asks for confirmation first."
+    return "Stopping and taking a break both need a scan, so stopping asks for confirmation first."
   }
 
-  private var releasesFooter: String {
+  private var breaksFooter: String {
     switch draft.method.interruption {
     case .none:
       return "Nothing lifts the block until the session ends."
@@ -150,7 +177,7 @@ struct BlockingMethodSection: View {
     case .grantByButton:
       return "A button on the block screen opens one app for a while."
     case .grantByScan:
-      return "Opening an app costs a trip to one of this profile's Physical Unlocks."
+      return "A break costs a trip to one of the codes below."
     }
   }
 

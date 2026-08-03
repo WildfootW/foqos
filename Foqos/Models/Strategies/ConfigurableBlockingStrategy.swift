@@ -75,10 +75,15 @@ final class ConfigurableBlockingStrategy: BlockingStrategy {
     case .nfc:
       nfcScanner.onTagScanned = { [weak self] tag in
         guard let self else { return }
+        let code = tag.url ?? tag.id
+        guard profile.accepts(code: code, type: .nfc, for: .start) else {
+          self.onErrorMessage?("This NFC tag can't start this profile.")
+          return
+        }
         self.begin(
           context: context,
           profile: profile,
-          tag: tag.url ?? tag.id,
+          tag: code,
           forceStart: forceStart ?? false
         )
       }
@@ -96,6 +101,10 @@ final class ConfigurableBlockingStrategy: BlockingStrategy {
         guard let self else { return }
         switch result {
         case .success(let scan):
+          guard profile.accepts(code: scan.string, type: .qrCode, for: .start) else {
+            self.onErrorMessage?("This code can't start this profile.")
+            return
+          }
           self.begin(
             context: context,
             profile: profile,
@@ -244,7 +253,7 @@ final class ConfigurableBlockingStrategy: BlockingStrategy {
     nfcScanner.scan(profileName: session.blockedProfile.name)
   }
 
-  /// Registered unlock items are the answer whenever the profile has any.
+  /// Codes registered for stopping are the answer whenever there are any.
   /// Without them, a session started by scanning still demands the same code
   /// back, which is the only guarantee left.
   private func codeCanStop(
@@ -254,8 +263,8 @@ final class ConfigurableBlockingStrategy: BlockingStrategy {
   ) -> Bool {
     let profile = session.blockedProfile
 
-    if profile.hasPhysicalUnblockItem(ofType: type) {
-      return profile.canUnblock(withCode: code, type: type)
+    if profile.hasCode(ofType: type, for: .stop) {
+      return profile.accepts(code: code, type: type, for: .stop)
     }
 
     if profile.method.start.isScan && !session.forceStarted {

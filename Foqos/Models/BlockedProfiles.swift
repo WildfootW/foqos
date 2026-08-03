@@ -81,22 +81,31 @@ class BlockedProfiles {
   ///   - codeValue: The NFC tag ID or QR code value to check
   ///   - type: The type of code (NFC or QR)
   /// - Returns: True if the code is in the allowed list, false otherwise
-  func canUnblock(withCode codeValue: String, type: PhysicalUnblockItem.PhysicalUnblockType) -> Bool
-  {
-    guard let items = physicalUnblockItems else { return false }
-    let normalizedCodeValue = PhysicalUnblockItem.normalizedCodeValue(codeValue, type: type)
+  /// Codes registered for an action. An empty set means the action has not
+  /// been narrowed down, and any code of the right kind will do.
+  func codes(for role: PhysicalUnblockRole) -> [PhysicalUnblockItem] {
+    (physicalUnblockItems ?? []).filter { $0.serves(role) }
+  }
 
-    return items.contains {
-      let itemCodeValue = PhysicalUnblockItem.normalizedCodeValue($0.codeValue, type: $0.type)
+  func accepts(
+    code codeValue: String,
+    type: PhysicalUnblockItem.PhysicalUnblockType,
+    for role: PhysicalUnblockRole
+  ) -> Bool {
+    let candidates = codes(for: role).filter { $0.type == type }
+    guard !candidates.isEmpty else { return true }
 
-      return $0.type == type
-        && itemCodeValue == normalizedCodeValue
+    let normalized = PhysicalUnblockItem.normalizedCodeValue(codeValue, type: type)
+    return candidates.contains {
+      PhysicalUnblockItem.normalizedCodeValue($0.codeValue, type: $0.type) == normalized
     }
   }
 
-  func hasPhysicalUnblockItem(ofType type: PhysicalUnblockItem.PhysicalUnblockType) -> Bool {
-    guard let items = physicalUnblockItems else { return false }
-    return items.contains { $0.type == type }
+  func hasCode(
+    ofType type: PhysicalUnblockItem.PhysicalUnblockType,
+    for role: PhysicalUnblockRole
+  ) -> Bool {
+    codes(for: role).contains { $0.type == type }
   }
 
   init(

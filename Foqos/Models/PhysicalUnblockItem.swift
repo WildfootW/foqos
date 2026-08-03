@@ -2,11 +2,39 @@ import Foundation
 
 /// Represents a physical NFC tag or QR code that can unblock a profile
 /// Supports having multiple NFC tags and/or QR codes per profile
+/// What a scanned code is allowed to do. Stored on the code so deleting one
+/// cannot leave an action pointing at something that is gone, but presented
+/// the other way round: each action owns the set of codes that satisfy it.
+enum PhysicalUnblockRole: String, Codable, CaseIterable, Sendable {
+  case start
+  case stop
+  case breakTime
+
+  var title: String {
+    switch self {
+    case .start: return "Start"
+    case .stop: return "Stop"
+    case .breakTime: return "Breaks"
+    }
+  }
+}
+
 struct PhysicalUnblockItem: Codable, Hashable, Identifiable, Sendable {
   var id: UUID
   var name: String
   var type: PhysicalUnblockType
   var codeValue: String
+  /// Absent on codes registered before roles existed, which stood for every
+  /// action at the time.
+  var roles: Set<PhysicalUnblockRole>? = nil
+
+  var effectiveRoles: Set<PhysicalUnblockRole> {
+    roles ?? Set(PhysicalUnblockRole.allCases)
+  }
+
+  func serves(_ role: PhysicalUnblockRole) -> Bool {
+    effectiveRoles.contains(role)
+  }
 
   enum PhysicalUnblockType: String, Codable, CaseIterable, Sendable {
     case nfc = "nfc"
@@ -24,12 +52,14 @@ struct PhysicalUnblockItem: Codable, Hashable, Identifiable, Sendable {
     id: UUID = UUID(),
     name: String,
     type: PhysicalUnblockType,
-    codeValue: String
+    codeValue: String,
+    roles: Set<PhysicalUnblockRole>? = nil
   ) {
     self.id = id
     self.name = name
     self.type = type
     self.codeValue = codeValue
+    self.roles = roles
   }
 
   static func resolvedItems(
@@ -79,7 +109,8 @@ struct PhysicalUnblockItem: Codable, Hashable, Identifiable, Sendable {
         id: item.id,
         name: trimmedName.isEmpty ? item.type.displayName : trimmedName,
         type: item.type,
-        codeValue: normalizedCodeValue
+        codeValue: normalizedCodeValue,
+        roles: item.roles
       )
     }
 

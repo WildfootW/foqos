@@ -100,8 +100,6 @@ struct BlockedProfileView: View {
           disabled: isBlocking
         )
 
-        BlockedProfileStrictUnlocksSection(draft: draft, disabled: isBlocking)
-
         BlockedProfileScheduleSection(
           draft: draft,
           showingSchedulePicker: $showingSchedulePicker,
@@ -308,7 +306,7 @@ struct BlockedProfileView: View {
   }
 
   private func shouldWarnBeforeNFCWrite(for profile: BlockedProfiles) -> Bool {
-    return profile.hasPhysicalUnblockItem(ofType: .nfc)
+    return profile.hasCode(ofType: .nfc, for: .stop)
   }
 
   private func continuePendingNFCWrite() {

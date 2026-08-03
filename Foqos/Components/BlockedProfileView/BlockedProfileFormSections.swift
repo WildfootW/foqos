@@ -155,59 +155,6 @@ struct BlockedProfileDomainsSection: View {
   }
 }
 
-struct BlockedProfileStrictUnlocksFields: View {
-  @ObservedObject var draft: BlockedProfileDraft
-  var disabled: Bool
-
-  var body: some View {
-    BlockedProfilePhysicalUnblockSelector(
-      physicalUnblockItems: $draft.physicalUnblockItems,
-      disabled: disabled,
-      method: draft.method
-    )
-  }
-}
-
-struct BlockedProfileStrictUnlocksSection: View {
-  @ObservedObject var draft: BlockedProfileDraft
-  var disabled: Bool
-
-  /// Registering codes is pointless for a profile that never scans, so the
-  /// section only appears when the method asks for one - or when codes are
-  /// already registered and might now want deleting.
-  private var isRelevant: Bool {
-    draft.method.needsPhysicalUnlockItems || !draft.physicalUnblockItems.isEmpty
-  }
-
-  private var explanation: String {
-    let uses = draft.method.scanUses
-    guard !uses.isEmpty else {
-      return "This profile never asks for a scan, so these are not used. "
-        + "Change Start, Stop or Releases above to scan for one."
-    }
-
-    let list: String
-    switch uses.count {
-    case 1: list = uses[0]
-    case 2: list = "\(uses[0]) and \(uses[1])"
-    default: list = uses.dropLast().joined(separator: ", ") + ", and \(uses.last!)"
-    }
-    return "Scanned to \(list)."
-  }
-
-  var body: some View {
-    if isRelevant {
-      Section {
-        BlockedProfileStrictUnlocksFields(draft: draft, disabled: disabled)
-      } header: {
-        Text("Physical Unlocks")
-      } footer: {
-        Text(explanation)
-      }
-    }
-  }
-}
-
 struct BlockedProfileScheduleFields: View {
   @ObservedObject var draft: BlockedProfileDraft
   @Binding var showingSchedulePicker: Bool
