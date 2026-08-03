@@ -191,6 +191,32 @@ extension BlockingMethod {
     return stop.isScan
   }
 
+  /// Where a registered tag or code actually gets scanned, phrased so the
+  /// list reads as a sentence. Empty means this profile never asks for one.
+  var scanUses: [String] {
+    var uses: [String] = []
+    if start.isScan { uses.append("start it") }
+    if stop.isScan { uses.append("stop it") }
+    if case .grantByScan = interruption { uses.append("open an app briefly") }
+    return uses
+  }
+
+  var needsPhysicalUnlockItems: Bool { !scanUses.isEmpty }
+
+  /// Which kinds of code this profile will ever ask for, so registering the
+  /// other kind can be called out as unused.
+  var scannedTypes: Set<PhysicalUnblockItem.PhysicalUnblockType> {
+    var types: Set<PhysicalUnblockItem.PhysicalUnblockType> = []
+    if start == .nfc || stop == .nfc { types.insert(.nfc) }
+    if start == .qr || stop == .qr { types.insert(.qrCode) }
+    // A scan-earned release accepts whichever kind is registered.
+    if case .grantByScan = interruption {
+      types.insert(.nfc)
+      types.insert(.qrCode)
+    }
+    return types
+  }
+
   var summary: String {
     var parts = ["Start: \(start.title)", "Stop: \(stop.title)"]
     if case .usageAllowance = enforcement {

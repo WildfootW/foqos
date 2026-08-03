@@ -9,6 +9,9 @@ struct BlockedProfilePhysicalUnblockSelector: View {
   @Binding var physicalUnblockItems: [PhysicalUnblockItem]
   var disabled: Bool = false
   var disabledText: String?
+  /// Lets each column say what this profile will actually do with a code,
+  /// and stay quiet about the kind it never scans.
+  var method: BlockingMethod = BlockingMethod()
 
   @State private var showingQRCodeScanner = false
   @State private var showingRenamePrompt = false
@@ -18,6 +21,23 @@ struct BlockedProfilePhysicalUnblockSelector: View {
   @State private var renameItemID: UUID?
 
   private let physicalReader = PhysicalReader()
+
+  private func columnDescription(
+    for type: PhysicalUnblockItem.PhysicalUnblockType
+  ) -> String {
+    guard method.scannedTypes.contains(type) else {
+      return "This profile never scans "
+        + (type == .nfc ? "a tag" : "a code") + "."
+    }
+
+    var uses: [String] = []
+    if method.start == (type == .nfc ? .nfc : .qr) { uses.append("start") }
+    if method.stop == (type == .nfc ? .nfc : .qr) { uses.append("stop") }
+    if case .grantByScan = method.interruption { uses.append("open an app briefly") }
+
+    guard !uses.isEmpty else { return "Registered but unused by this profile." }
+    return "Scan to " + uses.joined(separator: " or ") + "."
+  }
 
   private var nfcItems: [PhysicalUnblockItem] {
     physicalUnblockItems.filter { $0.type == .nfc }
@@ -32,7 +52,7 @@ struct BlockedProfilePhysicalUnblockSelector: View {
       HStack(alignment: .top, spacing: 12) {
         physicalUnblockColumn(
           title: "NFC Tags",
-          description: "Add NFC tags that can unlock this profile while a session is active.",
+          description: columnDescription(for: .nfc),
           systemImage: "wave.3.right.circle.fill",
           assetImage: "NFCStickerLogo",
           items: nfcItems,
@@ -43,8 +63,7 @@ struct BlockedProfilePhysicalUnblockSelector: View {
 
         physicalUnblockColumn(
           title: "QR/Barcode",
-          description:
-            "Add QR codes or barcodes that can unlock this profile while a session is active.",
+          description: columnDescription(for: .qrCode),
           systemImage: "qrcode.viewfinder",
           assetImage: "QRStickerLogo",
           items: qrItems,
