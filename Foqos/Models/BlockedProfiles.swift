@@ -46,13 +46,20 @@ class BlockedProfiles {
 
   var customReminderMessage: String?
 
-  /// Nil only for rows written before the blocking method replaced the
-  /// strategy id; `method` reads through to a default so callers never branch.
-  var blockingMethod: BlockingMethod? = nil
+  /// The method as JSON rather than as a nested value type. SwiftData tries
+  /// to flatten Codable properties into columns, and the enums with
+  /// associated values inside BlockingMethod crash that machinery at runtime;
+  /// a Data blob goes through untouched.
+  private var blockingMethodData: Data? = nil
 
   var method: BlockingMethod {
-    get { blockingMethod ?? BlockingMethod() }
-    set { blockingMethod = newValue }
+    get {
+      guard let blockingMethodData,
+        let method = try? JSONDecoder().decode(BlockingMethod.self, from: blockingMethodData)
+      else { return BlockingMethod() }
+      return method
+    }
+    set { blockingMethodData = try? JSONEncoder().encode(newValue) }
   }
 
   @Relationship var sessions: [BlockedProfileSession] = []
@@ -170,7 +177,9 @@ class BlockedProfiles {
 
     self.disableBackgroundStops = disableBackgroundStops
     self.enableEmergencyUnblock = enableEmergencyUnblock
-    self.blockingMethod = blockingMethod
+    if let blockingMethod {
+      self.method = blockingMethod
+    }
   }
 
   func showStopButton(elapsedTime: TimeInterval) -> Bool {
@@ -293,7 +302,7 @@ class BlockedProfiles {
     }
 
     if let blockingMethod {
-      profile.blockingMethod = blockingMethod
+      profile.method = blockingMethod
     }
 
     profile.reminderTimeInSeconds = reminderTime
@@ -477,7 +486,7 @@ class BlockedProfiles {
       physicalUnblockItems: source.physicalUnblockItems,
       schedule: source.schedule,
       enableEmergencyUnblock: source.enableEmergencyUnblock,
-      blockingMethod: source.blockingMethod
+      blockingMethod: source.method
     )
 
     context.insert(cloned)

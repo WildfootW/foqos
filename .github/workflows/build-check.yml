@@ -1,7 +1,10 @@
 name: Build Check
 
-# Compile-only check (iOS Simulator, no signing, no secrets needed).
-# Runs on every push so you can catch Swift errors without a Mac.
+# Compile + smoke test on the iOS Simulator (no signing, no secrets).
+# Catches Swift errors AND launch crashes without a Mac: the app is
+# built, installed into a simulator, launched, and watched for a few
+# seconds. Screenshots land in the run's artifacts, so layout can be
+# reviewed without installing to a phone.
 
 on:
   push:
@@ -19,4 +22,54 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_26.3.app
 
       - name: Build for iOS Simulator
-        run: make build
+        run: |
+          xcodebuild -project foqos.xcodeproj -scheme foqos \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            build
+
+      - name: Launch in simulator and watch for a crash
+        run: |
+          APP="$RUNNER_TEMP/dd/Build/Products/Debug-iphonesimulator/foqos.app"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist")
+
+          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [0-9]+[^(]*' | head -1 | xargs)
+          echo "using simulator: $DEVICE ($BUNDLE_ID)"
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b
+
+          xcrun simctl install "$DEVICE" "$APP"
+          xcrun simctl launch "$DEVICE" "$BUNDLE_ID"
+
+          mkdir -p "$RUNNER_TEMP/shots"
+          sleep 4
+          xcrun simctl io "$DEVICE" screenshot "$RUNNER_TEMP/shots/01-after-launch.png"
+          sleep 6
+          xcrun simctl io "$DEVICE" screenshot "$RUNNER_TEMP/shots/02-after-10s.png"
+
+          # A crashed app leaves a report on the host and no running process.
+          CRASHES=$(ls ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i foqos || true)
+          if [ -n "$CRASHES" ]; then
+            echo "::error::app crashed after launch:"
+            echo "$CRASHES"
+            for f in ~/Library/Logs/DiagnosticReports/*foqos*; do
+              cp "$f" "$RUNNER_TEMP/shots/" || true
+            done
+            exit 1
+          fi
+
+          if ! pgrep -f "foqos.app/foqos" > /dev/null; then
+            echo "::error::app is no longer running 10s after launch"
+            exit 1
+          fi
+
+          echo "app is alive"
+
+      - name: Upload screenshots and crash logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-smoke
+          path: ${{ runner.temp }}/shots/
+          if-no-files-found: ignore

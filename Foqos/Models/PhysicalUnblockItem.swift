@@ -25,11 +25,13 @@ struct PhysicalUnblockItem: Codable, Hashable, Identifiable, Sendable {
   var type: PhysicalUnblockType
   var codeValue: String
   /// Absent on codes registered before roles existed, which stood for every
-  /// action at the time.
-  var roles: Set<PhysicalUnblockRole>? = nil
+  /// action at the time. An array rather than a Set: SwiftData flattens this
+  /// struct into its store, and Set is one of the types that flattening dies
+  /// on at runtime.
+  var roles: [PhysicalUnblockRole]? = nil
 
-  var effectiveRoles: Set<PhysicalUnblockRole> {
-    roles ?? Set(PhysicalUnblockRole.allCases)
+  var effectiveRoles: [PhysicalUnblockRole] {
+    roles ?? PhysicalUnblockRole.allCases
   }
 
   func serves(_ role: PhysicalUnblockRole) -> Bool {
@@ -53,7 +55,7 @@ struct PhysicalUnblockItem: Codable, Hashable, Identifiable, Sendable {
     name: String,
     type: PhysicalUnblockType,
     codeValue: String,
-    roles: Set<PhysicalUnblockRole>? = nil
+    roles: [PhysicalUnblockRole]? = nil
   ) {
     self.id = id
     self.name = name

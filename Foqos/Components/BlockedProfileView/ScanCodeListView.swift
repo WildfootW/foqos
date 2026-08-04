@@ -180,9 +180,9 @@ struct ScanCodeListView: View {
       $0.type == type
         && PhysicalUnblockItem.normalizedCodeValue($0.codeValue, type: $0.type) == normalized
     }) {
-      var roles = items[index].effectiveRoles
-      roles.insert(role)
-      items[index].roles = roles
+      if !items[index].serves(role) {
+        items[index].roles = items[index].effectiveRoles + [role]
+      }
       return
     }
 
@@ -203,16 +203,15 @@ struct ScanCodeListView: View {
   }
 
   private func grantRole(to item: PhysicalUnblockItem) {
-    guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
-    var roles = items[index].effectiveRoles
-    roles.insert(role)
-    items[index].roles = roles
+    guard let index = items.firstIndex(where: { $0.id == item.id }),
+      !items[index].serves(role)
+    else { return }
+    items[index].roles = items[index].effectiveRoles + [role]
   }
 
   private func revokeRole(from item: PhysicalUnblockItem) {
     guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
-    var roles = items[index].effectiveRoles
-    roles.remove(role)
+    let roles = items[index].effectiveRoles.filter { $0 != role }
 
     if roles.isEmpty {
       items.remove(at: index)
