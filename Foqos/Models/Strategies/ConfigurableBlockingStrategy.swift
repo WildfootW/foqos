@@ -213,7 +213,7 @@ final class ConfigurableBlockingStrategy: BlockingStrategy {
     }
     if scanTypes.count > 1 {
       return ScanChoiceView(
-        qrScanner: qrStopScanner(context: context, session: session) ?? AnyView(EmptyView()),
+        qrScanner: qrStopScanner(context: context, session: session) ?? AnyView(SwiftUI.EmptyView()),
         onNFC: { [weak self] in
           self?.beginNFCStopScan(context: context, session: session)
         }
@@ -227,6 +227,53 @@ final class ConfigurableBlockingStrategy: BlockingStrategy {
         : "This session ends on its own: \(method.autoEnd.title.lowercased())."
     )
     return nil
+  }
+
+  private func qrStopScanner(
+    context: ModelContext,
+    session: BlockedProfileSession
+  ) -> AnyView? {
+    guard session.blockedProfile.method.stop.contains(.qr) else { return nil }
+
+    return AnyView(
+      LabeledCodeScannerView(
+        heading: "Scan to stop",
+        subtitle: "Point your camera at the code for \(session.blockedProfile.name)."
+      ) { [weak self] result in
+        guard let self else { return }
+        switch result {
+        case .success(let scan):
+          guard self.codeCanStop(scan.string, type: .qrCode, session: session) else {
+            self.onErrorMessage?("This code can't stop this profile.")
+            return
+          }
+          self.end(context: context, session: session)
+        case .failure(let error):
+          self.onErrorMessage?(error.localizedDescription)
+        }
+      }
+    )
+  }
+
+  private func beginNFCStopScan(
+    context: ModelContext,
+    session: BlockedProfileSession
+  ) {
+    guard session.blockedProfile.method.stop.contains(.nfc) else { return }
+
+    nfcScanner.onTagScanned = { [weak self] tag in
+      guard let self else { return }
+      let code = tag.url ?? tag.id
+      guard self.codeCanStop(code, type: .nfc, session: session) else {
+        self.onErrorMessage?("This NFC tag can't stop this profile.")
+        return
+      }
+      self.end(context: context, session: session)
+    }
+    nfcScanner.onError = { [weak self] message in
+      self?.onErrorMessage?(message)
+    }
+    nfcScanner.scan(profileName: session.blockedProfile.name)
   }
 
   /// Codes registered for stopping are the answer whenever there are any.
