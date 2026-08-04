@@ -18,8 +18,12 @@ struct SettingsView: View {
   @State private var showDebugView = false
 
   private var appVersion: String {
-    Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-      ?? "1.0"
+    let version =
+      Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    // The build number is stamped by CI with the workflow run number, which is
+    // the only way to tell two sideloaded builds of the same version apart.
+    let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "dev"
+    return "\(version) (\(build))"
   }
 
   var body: some View {

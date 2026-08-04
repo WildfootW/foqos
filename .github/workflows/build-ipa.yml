@@ -145,12 +145,15 @@ jobs:
 
       - name: Archive
         run: |
+          # Stamp the run number in as the build number; every build of the
+          # same version is otherwise indistinguishable once installed.
           xcodebuild archive \
             -project foqos.xcodeproj \
             -scheme foqos \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/foqos.xcarchive" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             CODE_SIGNING_ALLOWED=YES
 
       - name: Export IPA
