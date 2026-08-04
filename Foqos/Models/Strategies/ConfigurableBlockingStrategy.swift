@@ -65,36 +65,72 @@ final class ConfigurableBlockingStrategy: BlockingStrategy {
   ) -> (any View)? {
     let method = profile.method
 
-    switch method.start {
-    case .manual, .schedule:
-      // A scheduled profile can still be started by hand; the schedule just
-      // means it also starts on its own.
-      begin(context: context, profile: profile, tag: Self.id, forceStart: forceStart ?? false)
+    // Tapping start satisfies a manual trigger directly; a schedule-only
+    // profile has no by-hand path at all, on purpose.
+    if method.startsManually || (method.start.contains(.schedule) && !method.startsByScan) {
+      guard method.canStartByHand || method.start.contains(.schedule) else {
+        onErrorMessage?("This profile has no way to start.")
+        return nil
+      }
+      if method.startsManually {
+        begin(context: context, profile: profile, tag: Self.id, forceStart: forceStart ?? false)
+        return nil
+      }
+      onErrorMessage?("This profile starts on its schedule.")
       return nil
+    }
 
-    case .nfc:
-      nfcScanner.onTagScanned = { [weak self] tag in
-        guard let self else { return }
-        let code = tag.url ?? tag.id
-        guard profile.accepts(code: code, type: .nfc, for: .start) else {
-          self.onErrorMessage?("This NFC tag can't start this profile.")
-          return
+    let scanTypes = method.startScanTypes
+    if scanTypes.contains(.nfc) && scanTypes.count == 1 {
+      beginNFCStartScan(context: context, profile: profile, forceStart: forceStart ?? false)
+      return nil
+    }
+    if scanTypes == [.qrCode] {
+      return qrStartScanner(context: context, profile: profile, forceStart: forceStart ?? false)
+    }
+    if scanTypes.count > 1 {
+      // Both kinds accepted: show the camera, offer NFC as the alternative.
+      return ScanChoiceView(
+        qrScanner: qrStartScanner(
+          context: context, profile: profile, forceStart: forceStart ?? false),
+        onNFC: { [weak self] in
+          self?.beginNFCStartScan(
+            context: context, profile: profile, forceStart: forceStart ?? false)
         }
-        self.begin(
-          context: context,
-          profile: profile,
-          tag: code,
-          forceStart: forceStart ?? false
-        )
-      }
-      nfcScanner.onError = { [weak self] message in
-        self?.onErrorMessage?(message)
-      }
-      nfcScanner.scan(profileName: profile.name)
-      return nil
+      )
+    }
 
-    case .qr:
-      return LabeledCodeScannerView(
+    onErrorMessage?("This profile has no way to start.")
+    return nil
+  }
+
+  private func beginNFCStartScan(
+    context: ModelContext,
+    profile: BlockedProfiles,
+    forceStart: Bool
+  ) {
+    nfcScanner.onTagScanned = { [weak self] tag in
+      guard let self else { return }
+      let code = tag.url ?? tag.id
+      guard profile.accepts(code: code, type: .nfc, for: .start) else {
+        self.onErrorMessage?("This NFC tag can't start this profile.")
+        return
+      }
+      self.begin(context: context, profile: profile, tag: code, forceStart: forceStart)
+    }
+    nfcScanner.onError = { [weak self] message in
+      self?.onErrorMessage?(message)
+    }
+    nfcScanner.scan(profileName: profile.name)
+  }
+
+  private func qrStartScanner(
+    context: ModelContext,
+    profile: BlockedProfiles,
+    forceStart: Bool
+  ) -> AnyView {
+    AnyView(
+      LabeledCodeScannerView(
         heading: "Scan to start",
         subtitle: "Point your camera at the code for \(profile.name)."
       ) { [weak self] result in
@@ -106,16 +142,12 @@ final class ConfigurableBlockingStrategy: BlockingStrategy {
             return
           }
           self.begin(
-            context: context,
-            profile: profile,
-            tag: scan.string,
-            forceStart: forceStart ?? false
-          )
+            context: context, profile: profile, tag: scan.string, forceStart: forceStart)
         case .failure(let error):
           self.onErrorMessage?(error.localizedDescription)
         }
       }
-    }
+    )
   }
 
   private func begin(
@@ -166,90 +198,35 @@ final class ConfigurableBlockingStrategy: BlockingStrategy {
     let profile = session.blockedProfile
     let method = profile.method
 
-    // When a release and a stop are both one scan of the same tag, ending the
-    // session is the strictly better deal and would always win. Make the
-    // difference explicit before the scanner opens.
-    guard method.stopAndReleaseShareACredential else {
-      return openStopScanner(context: context, session: session)
-    }
-
-    let minutes = method.interruption.releaseMinutes ?? 5
-    return StopConfirmationView(
-      profileName: profile.name,
-      releaseDescription: "\(minutes) more minute\(minutes == 1 ? "" : "s")",
-      onCancel: { StrategyManager.shared.showCustomStrategyView = false },
-      // Built now but not shown until the question is answered; a QR scanner is
-      // inert until it appears, and an NFC scan only starts from onConfirm.
-      scannerView: qrStopScanner(context: context, session: session),
-      onConfirm: { [weak self] in
-        self?.beginNFCStopScan(context: context, session: session)
-      }
-    )
-  }
-
-  /// Starts whichever stop mechanism the profile uses. Returns a view when the
-  /// mechanism needs one, nil when it runs on its own.
-  private func openStopScanner(
-    context: ModelContext,
-    session: BlockedProfileSession
-  ) -> (any View)? {
-    switch session.blockedProfile.method.stop {
-    case .manual:
+    if method.stop.contains(.manual) {
       end(context: context, session: session)
       return nil
-    case .nfc:
+    }
+
+    let scanTypes = method.stopScanTypes
+    if scanTypes.contains(.nfc) && scanTypes.count == 1 {
       beginNFCStopScan(context: context, session: session)
       return nil
-    case .qr:
+    }
+    if scanTypes == [.qrCode] {
       return qrStopScanner(context: context, session: session)
     }
-  }
-
-  private func qrStopScanner(
-    context: ModelContext,
-    session: BlockedProfileSession
-  ) -> AnyView? {
-    guard session.blockedProfile.method.stop == .qr else { return nil }
-
-    return AnyView(
-      LabeledCodeScannerView(
-        heading: "Scan to stop",
-        subtitle: "Point your camera at the code for \(session.blockedProfile.name)."
-      ) { [weak self] result in
-        guard let self else { return }
-        switch result {
-        case .success(let scan):
-          guard self.codeCanStop(scan.string, type: .qrCode, session: session) else {
-            self.onErrorMessage?("This code can't stop this profile.")
-            return
-          }
-          self.end(context: context, session: session)
-        case .failure(let error):
-          self.onErrorMessage?(error.localizedDescription)
+    if scanTypes.count > 1 {
+      return ScanChoiceView(
+        qrScanner: qrStopScanner(context: context, session: session) ?? AnyView(EmptyView()),
+        onNFC: { [weak self] in
+          self?.beginNFCStopScan(context: context, session: session)
         }
-      }
+      )
+    }
+
+    // No by-hand stop; the session runs out on its own.
+    onErrorMessage?(
+      method.autoEnd == .never
+        ? "This profile has no way to stop."
+        : "This session ends on its own: \(method.autoEnd.title.lowercased())."
     )
-  }
-
-  private func beginNFCStopScan(
-    context: ModelContext,
-    session: BlockedProfileSession
-  ) {
-    guard session.blockedProfile.method.stop == .nfc else { return }
-
-    nfcScanner.onTagScanned = { [weak self] tag in
-      guard let self else { return }
-      let code = tag.url ?? tag.id
-      guard self.codeCanStop(code, type: .nfc, session: session) else {
-        self.onErrorMessage?("This NFC tag can't stop this profile.")
-        return
-      }
-      self.end(context: context, session: session)
-    }
-    nfcScanner.onError = { [weak self] message in
-      self?.onErrorMessage?(message)
-    }
-    nfcScanner.scan(profileName: session.blockedProfile.name)
+    return nil
   }
 
   /// Codes registered for stopping are the answer whenever there are any.
@@ -266,7 +243,7 @@ final class ConfigurableBlockingStrategy: BlockingStrategy {
       return profile.accepts(code: code, type: type, for: .stop)
     }
 
-    if profile.method.start.isScan && !session.forceStarted {
+    if profile.method.startsByScan && !session.forceStarted {
       return code == session.tag
     }
 

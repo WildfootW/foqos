@@ -187,9 +187,9 @@ final class SessionTimeCalculatorTests: XCTestCase {
     allowMultipleBreaks: Bool = false
   ) -> BlockedProfiles {
     let method = BlockingMethod(
-      start: .manual,
-      stop: durationInMinutes == nil ? .manual : .timer,
-      stopTimerMinutes: durationInMinutes ?? 25
+      start: [.manual],
+      stop: [.manual],
+      autoEnd: durationInMinutes.map { AutoEnd.afterMinutes($0) } ?? .never
     )
 
     return BlockedProfiles(

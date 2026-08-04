@@ -58,12 +58,14 @@ struct BlockingMethodSection: View {
   }
 
   private var stopFooter: String {
-    guard draft.method.stopAndReleaseShareACredential else {
+    if draft.method.stop.isEmpty {
       return draft.method.autoEnd == .never
-        ? "This profile runs until you stop it."
-        : draft.method.autoEnd.title + "."
+        ? "Nothing can end this session - add a stop method or an automatic end."
+        : "No stopping by hand; it only ends on its own."
     }
-    return "Stopping and taking a break both need a scan, so stopping asks for confirmation first."
+    return draft.method.autoEnd == .never
+      ? "Any checked method stops it. It never ends on its own."
+      : "Any checked method stops it early. " + draft.method.autoEnd.title + "."
   }
 
   private var breaksFooter: String {

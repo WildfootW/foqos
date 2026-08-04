@@ -4,6 +4,55 @@ import SwiftUI
 /// editor and the guided flow ask them the same way - the editor stacking all
 /// four, the guide taking one per step.
 
+/// A grid of toggleable chips. Every checked option counts, which is the whole
+/// point: a session can accept several ways in or out at once.
+struct TriggerChipGrid<Option: Identifiable & Equatable>: View {
+  @EnvironmentObject private var themeManager: ThemeManager
+
+  let options: [Option]
+  let title: (Option) -> String
+  let isOn: (Option) -> Bool
+  let toggle: (Option) -> Void
+
+  private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+
+  var body: some View {
+    LazyVGrid(columns: columns, spacing: 8) {
+      ForEach(options) { option in
+        Button {
+          toggle(option)
+        } label: {
+          HStack(spacing: 6) {
+            Image(systemName: isOn(option) ? "checkmark.circle.fill" : "circle")
+              .font(.subheadline)
+            Text(title(option))
+              .font(.subheadline)
+              .lineLimit(1)
+              .minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+          }
+          .padding(.horizontal, 10)
+          .padding(.vertical, 9)
+          .background(
+            RoundedRectangle(cornerRadius: 10)
+              .fill(isOn(option) ? themeManager.themeColor.opacity(0.16) : Color.secondary.opacity(0.08))
+          )
+          .overlay(
+            RoundedRectangle(cornerRadius: 10)
+              .stroke(
+                isOn(option) ? themeManager.themeColor : Color.clear,
+                lineWidth: 1.5
+              )
+          )
+          .foregroundStyle(isOn(option) ? themeManager.themeColor : Color.secondary)
+        }
+        .buttonStyle(.plain)
+      }
+    }
+    .padding(.vertical, 2)
+  }
+}
+
 // MARK: - Start
 
 struct BlockingStartFields: View {
@@ -13,15 +62,18 @@ struct BlockingStartFields: View {
   @State private var showingSchedulePicker = false
 
   var body: some View {
-    Picker("Start", selection: draft.methodBinding(\.start)) {
-      ForEach(StartTrigger.allCases) { Text($0.title).tag($0) }
-    }
+    TriggerChipGrid(
+      options: StartTrigger.allCases,
+      title: \.chipTitle,
+      isOn: { draft.method.start.contains($0) },
+      toggle: { draft.toggleStart($0) }
+    )
 
-    if draft.method.start.isScan {
+    if !draft.method.startScanTypes.isEmpty {
       ScanCodeListView(
         items: $draft.physicalUnblockItems,
         role: .start,
-        allowedTypes: [draft.method.start == .nfc ? .nfc : .qrCode],
+        allowedTypes: draft.method.startScanTypes,
         disabled: disabled
       )
     }
@@ -100,15 +152,18 @@ struct BlockingStopFields: View {
   @State private var showingSchedulePicker = false
 
   var body: some View {
-    Picker("Stop", selection: draft.methodBinding(\.stop)) {
-      ForEach(StopTrigger.allCases) { Text($0.title).tag($0) }
-    }
+    TriggerChipGrid(
+      options: StopTrigger.allCases,
+      title: \.chipTitle,
+      isOn: { draft.method.stop.contains($0) },
+      toggle: { draft.toggleStop($0) }
+    )
 
-    if draft.method.stop.isScan {
+    if !draft.method.stopScanTypes.isEmpty {
       ScanCodeListView(
         items: $draft.physicalUnblockItems,
         role: .stop,
-        allowedTypes: [draft.method.stop == .nfc ? .nfc : .qrCode],
+        allowedTypes: draft.method.stopScanTypes,
         disabled: disabled
       )
     }
@@ -127,7 +182,7 @@ struct BlockingStopFields: View {
       Toggle("Allow stopping early", isOn: draft.methodBinding(\.allowsEarlyStop))
     }
 
-    if draft.method.autoEnd == .whenScheduleEnds && draft.method.start != .schedule {
+    if draft.method.autoEnd == .whenScheduleEnds && !draft.method.start.contains(.schedule) {
       BlockedProfileScheduleSelector(
         schedule: draft.schedule,
         buttonAction: { showingSchedulePicker = true },
@@ -136,6 +191,27 @@ struct BlockingStopFields: View {
       .sheet(isPresented: $showingSchedulePicker) {
         SchedulePicker(schedule: $draft.schedule, isPresented: $showingSchedulePicker)
       }
+    }
+  }
+}
+
+extension StartTrigger {
+  var chipTitle: String {
+    switch self {
+    case .manual: return "Tap"
+    case .nfc: return "NFC tag"
+    case .qr: return "QR code"
+    case .schedule: return "Schedule"
+    }
+  }
+}
+
+extension StopTrigger {
+  var chipTitle: String {
+    switch self {
+    case .manual: return "Tap"
+    case .nfc: return "NFC tag"
+    case .qr: return "QR code"
     }
   }
 }

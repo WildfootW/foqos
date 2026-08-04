@@ -9,12 +9,15 @@ import SwiftUI
 /// end early by scanning, a usage allowance with a temporary release, a session
 /// started with a tag and ended by a timer.
 struct BlockingMethod: Codable, Equatable {
-  var start: StartTrigger
+  /// Every checked way of starting works; a profile with only `.schedule`
+  /// simply cannot be started by hand, which is a legitimate hardcore setup.
+  var start: [StartTrigger]
   /// How a person ends it. Independent of `autoEnd`: a session can run out on
-  /// its own and still ask for a scan when you want out early.
-  var stop: StopTrigger
+  /// its own and still ask for a scan when you want out early. Empty is legal
+  /// as long as something automatic ends the session.
+  var stop: [StopTrigger]
   var autoEnd: AutoEnd
-  /// Whether the stop control works before `autoEnd` fires. Off makes a timed
+  /// Whether the stop controls work before `autoEnd` fires. Off makes a timed
   /// session impossible to abandon halfway.
   var allowsEarlyStop: Bool
   var enforcement: EnforcementMode
@@ -22,8 +25,8 @@ struct BlockingMethod: Codable, Equatable {
   var emergency: EmergencyPolicy
 
   init(
-    start: StartTrigger = .nfc,
-    stop: StopTrigger = .nfc,
+    start: [StartTrigger] = [.nfc],
+    stop: [StopTrigger] = [.nfc],
     autoEnd: AutoEnd = .never,
     allowsEarlyStop: Bool = true,
     enforcement: EnforcementMode = .blockImmediately,
@@ -37,6 +40,32 @@ struct BlockingMethod: Codable, Equatable {
     self.enforcement = enforcement
     self.interruption = interruption
     self.emergency = emergency
+  }
+
+  // Rows written while these were single choices decode as such.
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    if let many = try? container.decode([StartTrigger].self, forKey: .start) {
+      start = many
+    } else {
+      start = [try container.decode(StartTrigger.self, forKey: .start)]
+    }
+    if let many = try? container.decode([StopTrigger].self, forKey: .stop) {
+      stop = many
+    } else {
+      stop = [try container.decode(StopTrigger.self, forKey: .stop)]
+    }
+    autoEnd = try container.decodeIfPresent(AutoEnd.self, forKey: .autoEnd) ?? .never
+    allowsEarlyStop =
+      try container.decodeIfPresent(Bool.self, forKey: .allowsEarlyStop) ?? true
+    enforcement =
+      try container.decodeIfPresent(EnforcementMode.self, forKey: .enforcement)
+      ?? .blockImmediately
+    interruption =
+      try container.decodeIfPresent(InterruptionMode.self, forKey: .interruption) ?? .none
+    emergency =
+      try container.decodeIfPresent(EmergencyPolicy.self, forKey: .emergency)
+      ?? EmergencyPolicy()
   }
 }
 
@@ -196,48 +225,33 @@ struct EmergencyPolicy: Codable, Equatable {
 // MARK: - Derived capabilities
 
 extension BlockingMethod {
-  var usesNFC: Bool { start == .nfc || stop == .nfc }
-  var usesQRCode: Bool { start == .qr || stop == .qr }
+  var usesNFC: Bool { start.contains(.nfc) || stop.contains(.nfc) }
+  var usesQRCode: Bool { start.contains(.qr) || stop.contains(.qr) }
   var hasTimer: Bool { autoEnd.minutes != nil }
-  var needsSchedule: Bool { start == .schedule || autoEnd == .whenScheduleEnds }
-  var startsManually: Bool { start == .manual }
+  var needsSchedule: Bool { start.contains(.schedule) || autoEnd == .whenScheduleEnds }
+  var startsManually: Bool { start.contains(.manual) }
+  var startsByScan: Bool { start.contains(.nfc) || start.contains(.qr) }
+  var stopsByScan: Bool { stop.contains(.nfc) || stop.contains(.qr) }
+  var canStartByHand: Bool { startsManually || startsByScan }
 
-  /// Whether ending the session and taking a release both cost the same
-  /// physical act. When they do, the release is the strictly worse deal and the
-  /// stop needs a confirmation step to stay meaningful.
-  var stopAndReleaseShareACredential: Bool {
-    guard case .grantByScan = interruption else { return false }
-    return stop.isScan
+  var startScanTypes: [PhysicalUnblockItem.PhysicalUnblockType] {
+    var types: [PhysicalUnblockItem.PhysicalUnblockType] = []
+    if start.contains(.nfc) { types.append(.nfc) }
+    if start.contains(.qr) { types.append(.qrCode) }
+    return types
   }
 
-  /// Where a registered tag or code actually gets scanned, phrased so the
-  /// list reads as a sentence. Empty means this profile never asks for one.
-  var scanUses: [String] {
-    var uses: [String] = []
-    if start.isScan { uses.append("start it") }
-    if stop.isScan { uses.append("stop it") }
-    if case .grantByScan = interruption { uses.append("open an app briefly") }
-    return uses
-  }
-
-  var needsPhysicalUnlockItems: Bool { !scanUses.isEmpty }
-
-  /// Which kinds of code this profile will ever ask for, so registering the
-  /// other kind can be called out as unused.
-  var scannedTypes: Set<PhysicalUnblockItem.PhysicalUnblockType> {
-    var types: Set<PhysicalUnblockItem.PhysicalUnblockType> = []
-    if start == .nfc || stop == .nfc { types.insert(.nfc) }
-    if start == .qr || stop == .qr { types.insert(.qrCode) }
-    // A scan-earned release accepts whichever kind is registered.
-    if case .grantByScan = interruption {
-      types.insert(.nfc)
-      types.insert(.qrCode)
-    }
+  var stopScanTypes: [PhysicalUnblockItem.PhysicalUnblockType] {
+    var types: [PhysicalUnblockItem.PhysicalUnblockType] = []
+    if stop.contains(.nfc) { types.append(.nfc) }
+    if stop.contains(.qr) { types.append(.qrCode) }
     return types
   }
 
   var summary: String {
-    var parts = ["Start: \(start.title)", "Stop: \(stop.title)"]
+    let startTitles = start.map(\.title).joined(separator: " / ")
+    let stopTitles = stop.isEmpty ? "-" : stop.map(\.title).joined(separator: " / ")
+    var parts = ["Start: \(startTitles)", "Stop: \(stopTitles)"]
     if autoEnd != .never {
       parts.append(autoEnd.title)
     }
@@ -255,16 +269,22 @@ extension BlockingMethod {
 
 extension BlockingMethod {
   enum ValidationIssue: Hashable {
+    case noWayToStart
+    case noWayToEnd
     case scheduleRequired
     case physicalUnlockItemRequired
     case allowanceNeedsBlocklistMode
 
     var message: String {
       switch self {
+      case .noWayToStart:
+        return "Pick at least one way to start."
+      case .noWayToEnd:
+        return "Nothing can end this session. Add a stop method or an automatic end."
       case .scheduleRequired:
         return "Set a schedule below, or pick a different way to start and stop."
       case .physicalUnlockItemRequired:
-        return "Add an NFC tag or QR code under Physical Unlocks first."
+        return "Register an NFC tag or QR code for breaks first."
       case .allowanceNeedsBlocklistMode:
         return "A daily allowance needs a blocked-app profile, not Allow Mode."
       }
@@ -278,6 +298,12 @@ extension BlockingMethod {
   ) -> [ValidationIssue] {
     var issues: [ValidationIssue] = []
 
+    if start.isEmpty {
+      issues.append(.noWayToStart)
+    }
+    if stop.isEmpty && autoEnd == .never {
+      issues.append(.noWayToEnd)
+    }
     if needsSchedule && !hasActiveSchedule {
       issues.append(.scheduleRequired)
     }
@@ -329,59 +355,59 @@ struct BlockingMethodPreset: Identifiable, Equatable {
       id: "nfc", name: "NFC Tags",
       detail: "Scan a tag to start, scan again to stop.",
       iconAssetName: "NFCStickerLogo", color: .yellow, category: .mostPopular,
-      method: BlockingMethod(start: .nfc, stop: .nfc)
+      method: BlockingMethod(start: [.nfc], stop: [.nfc])
     ),
     BlockingMethodPreset(
       id: "qr", name: "QR Code/Barcode",
       detail: "Scan a code to start, scan again to stop.",
       iconAssetName: "QRStickerLogo", color: .pink, category: .mostPopular,
-      method: BlockingMethod(start: .qr, stop: .qr)
+      method: BlockingMethod(start: [.qr], stop: [.qr])
     ),
     BlockingMethodPreset(
       id: "manual", name: "Manual",
       detail: "Start and stop it yourself, with nothing in the way.",
       iconAssetName: "ManualLogoSticker", color: .blue, category: .easyToStart,
-      method: BlockingMethod(start: .manual, stop: .manual)
+      method: BlockingMethod(start: [.manual], stop: [.manual])
     ),
     BlockingMethodPreset(
       id: "nfcManual", name: "NFC + Manual",
       detail: "Start with a tap, but scan a tag to stop.",
       iconAssetName: "Manual+NFCSticker", color: .yellow, category: .easyToStart,
-      method: BlockingMethod(start: .manual, stop: .nfc)
+      method: BlockingMethod(start: [.manual], stop: [.nfc])
     ),
     BlockingMethodPreset(
       id: "qrManual", name: "QR/Barcode + Manual",
       detail: "Start with a tap, but scan a code to stop.",
       iconAssetName: "Manual+QRSticker", color: .pink, category: .easyToStart,
-      method: BlockingMethod(start: .manual, stop: .qr)
+      method: BlockingMethod(start: [.manual], stop: [.qr])
     ),
     BlockingMethodPreset(
       id: "timerManual", name: "Timer + Manual",
       detail: "Runs out on its own after the time you set.",
       iconAssetName: "Manual + Timer", color: .mint, category: .timers,
       method: BlockingMethod(
-        start: .manual, stop: .manual, autoEnd: .afterMinutes(25))
+        start: [.manual], stop: [.manual], autoEnd: .afterMinutes(25))
     ),
     BlockingMethodPreset(
       id: "nfcTimer", name: "NFC + Timer",
       detail: "Runs out on its own; scan a tag to get out early.",
       iconAssetName: "NFC+TimerSticker", color: .mint, category: .timers,
       method: BlockingMethod(
-        start: .manual, stop: .nfc, autoEnd: .afterMinutes(25))
+        start: [.manual], stop: [.nfc], autoEnd: .afterMinutes(25))
     ),
     BlockingMethodPreset(
       id: "qrTimer", name: "QR/Barcode + Timer",
       detail: "Runs out on its own; scan a code to get out early.",
       iconAssetName: "QR+TimerSticker", color: .mint, category: .timers,
       method: BlockingMethod(
-        start: .manual, stop: .qr, autoEnd: .afterMinutes(25))
+        start: [.manual], stop: [.qr], autoEnd: .afterMinutes(25))
     ),
     BlockingMethodPreset(
       id: "nfcPause", name: "NFC + Breaks",
       detail: "No end time, with break time you can spend as you like.",
       iconAssetName: "NFCPauseSticker", color: .orange, category: .forever,
       method: BlockingMethod(
-        start: .manual, stop: .nfc,
+        start: [.manual], stop: [.nfc],
         interruption: .timedBreak(minutes: 15, allowMultiple: false))
     ),
     BlockingMethodPreset(
@@ -389,7 +415,7 @@ struct BlockingMethodPreset: Identifiable, Equatable {
       detail: "No end time, with break time you can spend as you like.",
       iconAssetName: "QRPauseSticker", color: .indigo, category: .forever,
       method: BlockingMethod(
-        start: .manual, stop: .qr,
+        start: [.manual], stop: [.qr],
         interruption: .timedBreak(minutes: 15, allowMultiple: false))
     ),
     BlockingMethodPreset(
@@ -397,7 +423,7 @@ struct BlockingMethodPreset: Identifiable, Equatable {
       detail: "Always on, with a few short openings you can tap for.",
       iconAssetName: "Soft Unblock + NFC", color: .purple, category: .forever,
       method: BlockingMethod(
-        start: .manual, stop: .nfc,
+        start: [.manual], stop: [.nfc],
         interruption: .grantByButton(minutes: 15, maxCount: 3))
     ),
     BlockingMethodPreset(
@@ -405,7 +431,7 @@ struct BlockingMethodPreset: Identifiable, Equatable {
       detail: "Always on, with a few short openings you can tap for.",
       iconAssetName: "Soft Unblock + QR", color: .purple, category: .forever,
       method: BlockingMethod(
-        start: .manual, stop: .qr,
+        start: [.manual], stop: [.qr],
         interruption: .grantByButton(minutes: 15, maxCount: 3))
     ),
     BlockingMethodPreset(
@@ -413,14 +439,14 @@ struct BlockingMethodPreset: Identifiable, Equatable {
       detail: "Blocks itself during the hours you set.",
       iconAssetName: "ManualLogoSticker", color: .teal, category: .forever,
       method: BlockingMethod(
-        start: .schedule, stop: .manual, autoEnd: .whenScheduleEnds)
+        start: [.schedule], stop: [.manual], autoEnd: .whenScheduleEnds)
     ),
     BlockingMethodPreset(
       id: "dailyAllowance", name: "Daily Allowance",
       detail: "Use the apps freely up to a daily limit, then scan for more.",
       iconAssetName: "NFCStickerLogo", color: .orange, category: .forever,
       method: BlockingMethod(
-        start: .schedule, stop: .manual, autoEnd: .whenScheduleEnds,
+        start: [.schedule], stop: [.manual], autoEnd: .whenScheduleEnds,
         enforcement: .usageAllowance(minutes: 30),
         interruption: .grantByScan(minutes: 5, maxCount: nil))
     ),

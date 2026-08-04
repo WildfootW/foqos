@@ -25,10 +25,14 @@ struct ScanCodeListView: View {
     items.filter { $0.serves(role) && allowedTypes.contains($0.type) }
   }
 
-  /// Codes this profile already knows about that this action does not accept
-  /// yet - the raw material for sharing one across two actions.
+  /// Codes this profile already knows about that this action could also
+  /// accept - the raw material for sharing one across two actions. Codes
+  /// holding a conflicting role are not offered.
   private var shareable: [PhysicalUnblockItem] {
-    items.filter { !$0.serves(role) && allowedTypes.contains($0.type) }
+    items.filter { item in
+      !item.serves(role) && allowedTypes.contains(item.type)
+        && !item.effectiveRoles.contains(where: { $0.conflicts(with: role) })
+    }
   }
 
   var body: some View {
@@ -180,6 +184,12 @@ struct ScanCodeListView: View {
       $0.type == type
         && PhysicalUnblockItem.normalizedCodeValue($0.codeValue, type: $0.type) == normalized
     }) {
+      if let conflict = items[index].effectiveRoles.first(where: { $0.conflicts(with: role) }) {
+        errorMessage =
+          "\(items[index].name) already \(conflict == .stop ? "stops" : "takes a break for")"
+          + " this profile. One code can't do both, or a scan wouldn't know which you meant."
+        return
+      }
       if !items[index].serves(role) {
         items[index].roles = items[index].effectiveRoles + [role]
       }

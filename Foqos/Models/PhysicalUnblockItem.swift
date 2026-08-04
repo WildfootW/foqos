@@ -17,6 +17,15 @@ enum PhysicalUnblockRole: String, Codable, CaseIterable, Sendable {
     case .breakTime: return "Breaks"
     }
   }
+
+  /// Roles a single code cannot hold together. Stop and break are both
+  /// scanned mid-session, so one code holding both would leave the scan's
+  /// meaning ambiguous. Start pairs with either: it is only ever scanned
+  /// while no session runs, so context settles it.
+  func conflicts(with other: PhysicalUnblockRole) -> Bool {
+    let pair: Set<PhysicalUnblockRole> = [self, other]
+    return pair == [.stop, .breakTime]
+  }
 }
 
 struct PhysicalUnblockItem: Codable, Hashable, Identifiable, Sendable {

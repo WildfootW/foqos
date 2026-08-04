@@ -87,6 +87,27 @@ final class BlockedProfileDraft: ObservableObject {
     )
   }
 
+  // MARK: - Trigger toggles
+
+  func toggleStart(_ trigger: StartTrigger) {
+    if method.start.contains(trigger) {
+      // An empty start set means the profile can never run; keep one.
+      guard method.start.count > 1 else { return }
+      method.start.removeAll { $0 == trigger }
+    } else {
+      method.start.append(trigger)
+    }
+  }
+
+  func toggleStop(_ trigger: StopTrigger) {
+    if method.stop.contains(trigger) {
+      // Empty is legal here - validation asks for an automatic end instead.
+      method.stop.removeAll { $0 == trigger }
+    } else {
+      method.stop.append(trigger)
+    }
+  }
+
   // MARK: - Method bindings
   //
   // The enums carry associated values, which pickers cannot select over, so
