@@ -46,15 +46,6 @@ struct BlockingMethodSection: View {
     }
     .disabled(disabled)
 
-    Section {
-      BlockingEmergencyFields(draft: draft, disabled: disabled)
-    } header: {
-      Text("Emergency")
-    } footer: {
-      Text("Breaking the glass ends the session outright. The count refills when you start again.")
-    }
-    .disabled(disabled)
-
     if !draft.methodValidationIssues.isEmpty {
       Section {
         ForEach(draft.methodValidationIssues, id: \.self) { issue in

@@ -84,19 +84,14 @@ struct BlockedProfileView: View {
 
         BlockedProfileNameSection(draft: draft, disabled: false)
 
-        BlockingMethodSection(draft: draft, disabled: isBlocking)
-
-        BlockedProfileAppsSection(
+        BlockedProfileCoverageSection(
           draft: draft,
           showingActivityPicker: $showingActivityPicker,
-          disabled: isBlocking
-        )
-
-        BlockedProfileDomainsSection(
-          draft: draft,
           showingDomainPicker: $showingDomainPicker,
           disabled: isBlocking
         )
+
+        BlockingMethodSection(draft: draft, disabled: isBlocking)
 
         BlockedProfileStrictSafeguardsSection(draft: draft, disabled: isBlocking)
 

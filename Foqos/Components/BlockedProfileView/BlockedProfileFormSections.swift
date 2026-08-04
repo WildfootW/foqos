@@ -77,16 +77,27 @@ struct BlockedProfileAppsFields: View {
   }
 }
 
-struct BlockedProfileAppsSection: View {
+/// Apps and websites answer the same question - what this profile covers - so
+/// they are asked together, in the editor and in the guided flow alike.
+struct BlockedProfileCoverageSection: View {
   @ObservedObject var draft: BlockedProfileDraft
   @Binding var showingActivityPicker: Bool
+  @Binding var showingDomainPicker: Bool
   var disabled: Bool
 
   var body: some View {
-    Section((draft.enableAllowMode ? "Allowed" : "Blocked") + " Apps") {
+    Section((draft.enableAllowMode ? "Allowed" : "Blocked") + " Apps & Websites") {
       BlockedProfileAppsFields(
         draft: draft,
         showingActivityPicker: $showingActivityPicker,
+        disabled: disabled
+      )
+
+      Divider()
+
+      BlockedProfileDomainsFields(
+        draft: draft,
+        showingDomainPicker: $showingDomainPicker,
         disabled: disabled
       )
     }
@@ -139,21 +150,6 @@ struct BlockedProfileDomainsFields: View {
   }
 }
 
-struct BlockedProfileDomainsSection: View {
-  @ObservedObject var draft: BlockedProfileDraft
-  @Binding var showingDomainPicker: Bool
-  var disabled: Bool
-
-  var body: some View {
-    Section((draft.enableAllowModeDomain ? "Allowed" : "Blocked") + " Domains") {
-      BlockedProfileDomainsFields(
-        draft: draft,
-        showingDomainPicker: $showingDomainPicker,
-        disabled: disabled
-      )
-    }
-  }
-}
 
 struct BlockedProfileScheduleFields: View {
   @ObservedObject var draft: BlockedProfileDraft
@@ -274,8 +270,16 @@ struct BlockedProfileSessionSafeguardsSection: View {
   var disabled: Bool
 
   var body: some View {
-    Section("Stop Options") {
+    Section {
       BlockedProfileSessionSafeguardsFields(draft: draft, disabled: disabled)
+
+      Divider()
+
+      BlockingEmergencyFields(draft: draft, disabled: disabled)
+    } header: {
+      Text("Stop Options")
+    } footer: {
+      Text("Breaking the glass ends the session outright. The count refills when you start again.")
     }
   }
 }
