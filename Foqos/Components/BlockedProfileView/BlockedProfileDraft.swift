@@ -16,7 +16,6 @@ final class BlockedProfileDraft: ObservableObject {
   @Published var enableSafariBlocking: Bool
   @Published var enableAdultContentBlocking: Bool
   @Published var disableBackgroundStops: Bool
-  @Published var enableEmergencyUnblock: Bool
   @Published var domains: [String]
   @Published var physicalUnblockItems: [PhysicalUnblockItem]
   @Published var schedule: BlockedProfileSchedule
@@ -35,7 +34,6 @@ final class BlockedProfileDraft: ObservableObject {
     enableAdultContentBlocking = profile?.enableAdultContentBlocking ?? false
     enableReminder = profile?.reminderTimeInSeconds != nil
     disableBackgroundStops = profile?.disableBackgroundStops ?? false
-    enableEmergencyUnblock = profile?.enableEmergencyUnblock ?? true
     reminderTimeInMinutes = Int(profile?.reminderTimeInSeconds ?? 900) / 60
     customReminderMessage = profile?.customReminderMessage ?? ""
     domains = profile?.domains ?? []
@@ -63,20 +61,26 @@ final class BlockedProfileDraft: ObservableObject {
   /// App names are unavailable by design - the tokens are opaque outside a
   /// Label - so this counts them instead.
   var suggestedName: String {
+    // The name leads the session screen, so it needs a subject; app tokens
+    // cannot be read back as names, which leaves the method as the headline
+    // and the count as the detail.
     let count = selectedActivity.applicationTokens.count
       + selectedActivity.categoryTokens.count
-    let subject = count == 0 ? "Profile" : "\(count) app\(count == 1 ? "" : "s")"
+    let detail = count == 0 ? nil : "\(count) app\(count == 1 ? "" : "s")"
 
+    let base: String
     if let minutes = method.enforcement.allowanceMinutes {
-      return "\(subject) · \(minutes) min/day"
+      base = "\(minutes) min a day"
+    } else if let preset = BlockingMethodPreset.matching(method) {
+      base = preset.name
+    } else if method.needsSchedule, schedule.isActive {
+      base = "Scheduled Focus"
+    } else {
+      base = "Focus"
     }
-    if let preset = BlockingMethodPreset.matching(method) {
-      return "\(subject) · \(preset.name)"
-    }
-    if method.needsSchedule, schedule.isActive {
-      return "\(subject) · scheduled"
-    }
-    return subject
+
+    guard let detail else { return base }
+    return "\(base) · \(detail)"
   }
 
   var methodValidationIssues: [BlockingMethod.ValidationIssue] {
@@ -307,7 +311,6 @@ final class BlockedProfileDraft: ObservableObject {
         physicalUnblockItems: .some(physicalUnblockItemsToSave),
         schedule: schedule,
         disableBackgroundStops: disableBackgroundStops,
-        enableEmergencyUnblock: enableEmergencyUnblock,
         blockingMethod: methodToSave
       )
 
@@ -332,7 +335,6 @@ final class BlockedProfileDraft: ObservableObject {
       physicalUnblockItems: physicalUnblockItemsToSave,
       schedule: schedule,
       disableBackgroundStops: disableBackgroundStops,
-      enableEmergencyUnblock: enableEmergencyUnblock,
       blockingMethod: methodToSave
     )
 

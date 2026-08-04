@@ -24,6 +24,10 @@ class BlockedProfileSession {
   /// session existing.
   var emergencyUsedCount: Int = 0
 
+  /// Breaks bought by scanning during this session, counted against the
+  /// method's optional cap.
+  var scanBreaksUsedCount: Int = 0
+
   var isActive: Bool {
     return endTime == nil
   }

@@ -115,7 +115,16 @@ enum AutoEnd: Codable, Equatable {
   case afterMinutes(Int)
   case whenScheduleEnds
 
-  static let minuteOptions = [5, 10, 15, 25, 30, 45, 60, 90, 120]
+  static let minuteOptions = [
+    5, 10, 15, 25, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720, 1440,
+  ]
+
+  static func label(forMinutes minutes: Int) -> String {
+    guard minutes >= 60 else { return "\(minutes) minutes" }
+    let hours = minutes / 60
+    let rest = minutes % 60
+    return rest == 0 ? "\(hours) hour\(hours == 1 ? "" : "s")" : "\(hours)h \(rest)m"
+  }
 
   var minutes: Int? {
     guard case .afterMinutes(let minutes) = self else { return nil }
@@ -125,7 +134,7 @@ enum AutoEnd: Codable, Equatable {
   var title: String {
     switch self {
     case .never: return "Runs until stopped"
-    case .afterMinutes(let minutes): return "After \(minutes) minutes"
+    case .afterMinutes(let minutes): return "After \(Self.label(forMinutes: minutes))"
     case .whenScheduleEnds: return "When the schedule ends"
     }
   }

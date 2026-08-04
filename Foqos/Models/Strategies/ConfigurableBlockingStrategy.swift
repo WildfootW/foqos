@@ -33,12 +33,15 @@ final class ConfigurableBlockingStrategy: BlockingStrategy {
   /// Describes a specific profile's method, so views asking a strategy how to
   /// label itself get answers about that profile rather than about the class.
   init(method: BlockingMethod) {
-    name = BlockingMethodPreset.matching(method)?.name ?? "Custom"
+    name = BlockingMethodPreset.matching(method)?.name ?? "Focus Session"
     description = method.summary
     usesNFC = method.usesNFC
     usesQRCode = method.usesQRCode
     hasTimer = method.hasTimer
-    hasPauseMode = method.interruption != .none
+    // Breaks flow through the break button; the main control always stops.
+    // The old pause-labelled main button quietly ended the session, which is
+    // the opposite of what its label promised.
+    hasPauseMode = false
     startsManually = method.startsManually
     allowsTimedBreaks = {
       if case .timedBreak = method.interruption { return true }

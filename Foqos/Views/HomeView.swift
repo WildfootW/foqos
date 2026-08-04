@@ -47,6 +47,10 @@ struct HomeView: View {
   // Navigate to profile
   @State private var navigateToProfileId: UUID? = nil
 
+  // Scan-for-a-break flow
+  @State private var scanBreakScanner = NFCScannerUtil()
+  @State private var showingScanBreakQR = false
+
   // Activity sessions
   @Query(
     filter: #Predicate<BlockedProfileSession> { $0.endTime != nil },
@@ -286,15 +290,52 @@ struct HomeView: View {
           elapsedTime: strategyManager.elapsedTime,
           displayTime: strategyManager.sessionDisplayTime,
           isBreakAvailable: isBreakAvailable,
+          isScanBreakAvailable: strategyManager.scanBreaksRemaining != nil,
           isBreakActive: isBreakActive,
           isPauseActive: isPauseActive,
           onBreakTapped: {
-            strategyManager.toggleBreak(context: context)
+            handleBreakTapped(for: activeProfile)
           },
           onStopTapped: {
             strategyButtonPress(activeProfile)
           }
         )
+        .sheet(isPresented: $showingScanBreakQR) {
+          VStack(spacing: 0) {
+            LabeledCodeScannerView(
+              heading: "Scan for a break",
+              subtitle: "Point your camera at one of this profile's break codes."
+            ) { result in
+              showingScanBreakQR = false
+              switch result {
+              case .success(let scan):
+                guard
+                  activeProfile.accepts(code: scan.string, type: .qrCode, for: .breakTime)
+                else {
+                  showErrorAlert(message: "This code can't buy a break for this profile.")
+                  return
+                }
+                strategyManager.startScanBreak(context: context)
+              case .failure(let error):
+                showErrorAlert(message: error.localizedDescription)
+              }
+            }
+
+            if activeProfile.hasCode(ofType: .nfc, for: .breakTime) {
+              Button {
+                showingScanBreakQR = false
+                beginScanBreakNFC(for: activeProfile)
+              } label: {
+                Label("Scan an NFC tag instead", systemImage: "wave.3.right")
+                  .frame(maxWidth: .infinity)
+                  .padding(.vertical, 12)
+              }
+              .buttonStyle(.bordered)
+              .padding(.horizontal, 20)
+              .padding(.bottom, 16)
+            }
+          }
+        }
       }
     }
     .sheet(item: $profileToShowStats) { profile in
@@ -354,6 +395,51 @@ struct HomeView: View {
   private func toggleSessionFromDeeplink(_ profileId: String, link: URL) {
     strategyManager
       .toggleSessionFromDeeplink(profileId, url: link, context: context)
+  }
+
+  private func handleBreakTapped(for profile: BlockedProfiles) {
+    // An active break always stops the ordinary way.
+    if strategyManager.isBreakActive || strategyManager.scanBreaksRemaining == nil {
+      strategyManager.toggleBreak(context: context)
+      return
+    }
+
+    if let remaining = strategyManager.scanBreaksRemaining, remaining <= 0 {
+      showErrorAlert(message: "No scan breaks left this session.")
+      return
+    }
+
+    let hasNFC = profile.hasCode(ofType: .nfc, for: .breakTime)
+    let hasQR = profile.hasCode(ofType: .qrCode, for: .breakTime)
+
+    // With nothing registered, either kind of scan is accepted; the camera is
+    // the path that always exists.
+    if hasNFC && !hasQR {
+      beginScanBreakNFC(for: profile)
+    } else if hasQR && !hasNFC {
+      showingScanBreakQR = true
+    } else if hasNFC && hasQR {
+      showingScanBreakQR = true
+    } else {
+      showingScanBreakQR = true
+    }
+  }
+
+  private func beginScanBreakNFC(for profile: BlockedProfiles) {
+    scanBreakScanner.onTagScanned = { tag in
+      let code = tag.url ?? tag.id
+      DispatchQueue.main.async {
+        guard profile.accepts(code: code, type: .nfc, for: .breakTime) else {
+          showErrorAlert(message: "This NFC tag can't buy a break for this profile.")
+          return
+        }
+        strategyManager.startScanBreak(context: context)
+      }
+    }
+    scanBreakScanner.onError = { message in
+      DispatchQueue.main.async { showErrorAlert(message: message) }
+    }
+    scanBreakScanner.scan(profileName: profile.name)
   }
 
   private func strategyButtonPress(_ profile: BlockedProfiles) {

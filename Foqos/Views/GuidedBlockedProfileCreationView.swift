@@ -516,7 +516,7 @@ private struct GuidedProfileReviewContent: View {
       enabled.append("Foqos required to stop")
     }
 
-    if !draft.enableEmergencyUnblock {
+    if !draft.method.emergency.isEnabled {
       enabled.append("Emergency unblock disabled")
     }
 

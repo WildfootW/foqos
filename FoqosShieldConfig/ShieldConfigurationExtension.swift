@@ -26,6 +26,12 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
       return softUnblockConfiguration
     }
 
+    if let scanBreakConfiguration = scanBreakConfiguration(
+      applicationToken: application.token, categoryToken: nil)
+    {
+      return scanBreakConfiguration
+    }
+
     return createCustomShieldConfiguration(
       for: .app, title: application.localizedDisplayName ?? "App")
   }
@@ -41,6 +47,12 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
     if let softUnblockConfiguration = softUnblockConfiguration(for: application, in: category) {
       return softUnblockConfiguration
+    }
+
+    if let scanBreakConfiguration = scanBreakConfiguration(
+      applicationToken: application.token, categoryToken: category.token)
+    {
+      return scanBreakConfiguration
     }
 
     return createCustomShieldConfiguration(
@@ -67,6 +79,47 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     }
 
     return createCustomShieldConfiguration(for: .website, title: webDomain.domain ?? "Website")
+  }
+
+  /// A blocked app whose profile trades scans for breaks should say so; the
+  /// shield itself cannot scan, but it can point at the app that can.
+  private func scanBreakConfiguration(
+    applicationToken: ApplicationToken?,
+    categoryToken: ActivityCategoryToken?
+  ) -> ShieldConfiguration? {
+    for snapshot in SharedData.profileSnapshots.values {
+      guard case .grantByScan(let minutes, _) = snapshot.method.interruption else { continue }
+
+      let selection = snapshot.selectedActivity
+      let matchesApplication =
+        applicationToken.map { selection.applicationTokens.contains($0) } ?? false
+      let matchesCategory =
+        categoryToken.map { selection.categoryTokens.contains($0) } ?? false
+      guard matchesApplication || matchesCategory else { continue }
+
+      return ShieldConfiguration(
+        backgroundBlurStyle: .dark,
+        backgroundColor: UIColor(ThemeManager.shared.themeColor),
+        icon: makeEmojiIcon("\u{1F3F7}\u{FE0F}", size: 96),
+        title: ShieldConfiguration.Label(
+          text: "Scan for a break",
+          color: .white
+        ),
+        subtitle: ShieldConfiguration.Label(
+          text: "Open Foqos and scan one of \(snapshot.name)'s break codes "
+            + "to open up for \(minutes) minute\(minutes == 1 ? "" : "s").",
+          color: UIColor.white.withAlphaComponent(0.88)
+        ),
+        primaryButtonLabel: ShieldConfiguration.Label(
+          text: "OK",
+          color: .black
+        ),
+        primaryButtonBackgroundColor: .white,
+        secondaryButtonLabel: nil
+      )
+    }
+
+    return nil
   }
 
   private func usageLimitConfiguration(

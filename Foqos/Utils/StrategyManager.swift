@@ -390,6 +390,49 @@ class StrategyManager: ObservableObject {
     return strategy
   }
 
+  /// Whether the active session's profile trades scans for breaks, and how
+  /// many are left. Unlimited when the method sets no cap.
+  var scanBreaksRemaining: Int? {
+    guard let session = activeSession,
+      case .grantByScan(_, let maxCount) = session.blockedProfile.method.interruption
+    else { return nil }
+    guard let maxCount else { return Int.max }
+    return max(maxCount - session.scanBreaksUsedCount, 0)
+  }
+
+  /// Starts a break that was just paid for with a valid scan. The scan itself
+  /// is collected and checked by the caller; this is the payoff.
+  func startScanBreak(context: ModelContext) {
+    guard let session = activeSession,
+      case .grantByScan(let minutes, _) = session.blockedProfile.method.interruption
+    else { return }
+
+    if let remaining = scanBreaksRemaining, remaining <= 0 {
+      errorMessage = "No scan breaks left this session."
+      return
+    }
+
+    session.scanBreaksUsedCount += 1
+    session.startBreak()
+    appBlocker.deactivateRestrictionsForBreak(
+      for: BlockedProfiles.getSnapshot(for: session.blockedProfile))
+    try? context.save()
+
+    let durationInSeconds = TimeInterval(minutes * 60)
+    DeviceActivityCenterUtil.startBreakTimerActivity(
+      for: session.blockedProfile,
+      durationInSeconds: durationInSeconds
+    )
+    scheduleBreakReminder(
+      profile: session.blockedProfile,
+      durationInSeconds: durationInSeconds
+    )
+
+    WidgetCenter.shared.reloadTimelines(ofKind: "ProfileControlWidget")
+    updateSessionTimes()
+    liveActivityManager.updateBreakState(session: session)
+  }
+
   private func startBreak(context: ModelContext) {
     guard let session = activeSession else {
       print("Breaks only available in active session")

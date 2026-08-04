@@ -42,7 +42,6 @@ class BlockedProfiles {
 
   var disableBackgroundStops: Bool = false
 
-  var enableEmergencyUnblock: Bool = true
 
   var customReminderMessage: String?
 
@@ -95,6 +94,8 @@ class BlockedProfiles {
     if case .timedBreak(_, let allowMultiple) = method.interruption { return allowMultiple }
     return false
   }
+
+  var enableEmergencyUnblock: Bool { method.emergency.isEnabled }
 
   // MARK: - Physical Unblock Helpers
 
@@ -150,7 +151,6 @@ class BlockedProfiles {
     physicalUnblockItems: [PhysicalUnblockItem]? = nil,
     schedule: BlockedProfileSchedule? = nil,
     disableBackgroundStops: Bool = false,
-    enableEmergencyUnblock: Bool = true,
     blockingMethod: BlockingMethod? = nil
   ) {
     self.id = id
@@ -176,7 +176,6 @@ class BlockedProfiles {
     self.schedule = schedule
 
     self.disableBackgroundStops = disableBackgroundStops
-    self.enableEmergencyUnblock = enableEmergencyUnblock
     if let blockingMethod {
       self.method = blockingMethod
     }
@@ -235,7 +234,6 @@ class BlockedProfiles {
     physicalUnblockItems: [PhysicalUnblockItem]?? = nil,
     schedule: BlockedProfileSchedule? = nil,
     disableBackgroundStops: Bool? = nil,
-    enableEmergencyUnblock: Bool? = nil,
     blockingMethod: BlockingMethod? = nil
   ) throws -> BlockedProfiles {
     if let newName = name {
@@ -293,9 +291,6 @@ class BlockedProfiles {
       profile.disableBackgroundStops = newDisableBackgroundStops
     }
 
-    if let newEnableEmergencyUnblock = enableEmergencyUnblock {
-      profile.enableEmergencyUnblock = newEnableEmergencyUnblock
-    }
 
     if let physicalUnblockItems {
       profile.physicalUnblockItems = PhysicalUnblockItem.normalizedItems(physicalUnblockItems)
@@ -374,7 +369,6 @@ class BlockedProfiles {
       physicalUnblockItems: profile.physicalUnblockItems,
       schedule: profile.schedule,
       disableBackgroundStops: profile.disableBackgroundStops,
-      enableEmergencyUnblock: profile.enableEmergencyUnblock,
       blockingMethod: profile.method
     )
   }
@@ -426,7 +420,6 @@ class BlockedProfiles {
     physicalUnblockItems: [PhysicalUnblockItem]? = nil,
     schedule: BlockedProfileSchedule? = nil,
     disableBackgroundStops: Bool = false,
-    enableEmergencyUnblock: Bool = true,
     blockingMethod: BlockingMethod? = nil
   ) throws -> BlockedProfiles {
     let profileOrder = getNextOrder(in: context)
@@ -447,7 +440,6 @@ class BlockedProfiles {
       domains: domains,
       physicalUnblockItems: physicalUnblockItems,
       disableBackgroundStops: disableBackgroundStops,
-      enableEmergencyUnblock: enableEmergencyUnblock,
       blockingMethod: blockingMethod
     )
 
@@ -485,7 +477,6 @@ class BlockedProfiles {
       domains: source.domains,
       physicalUnblockItems: source.physicalUnblockItems,
       schedule: source.schedule,
-      enableEmergencyUnblock: source.enableEmergencyUnblock,
       blockingMethod: source.method
     )
 

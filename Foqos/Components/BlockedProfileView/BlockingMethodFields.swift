@@ -4,6 +4,25 @@ import SwiftUI
 /// editor and the guided flow ask them the same way - the editor stacking all
 /// four, the guide taking one per step.
 
+/// A menu picker that keeps its label everywhere. Bare Pickers show
+/// "label: value" inside a Form but swallow the label in a plain stack, which
+/// is exactly where the guided flow puts these.
+struct LabeledPickerRow<Value: Hashable, Options: View>: View {
+  let label: String
+  @Binding var selection: Value
+  @ViewBuilder let options: () -> Options
+
+  var body: some View {
+    HStack {
+      Text(label)
+      Spacer()
+      Picker(label, selection: $selection, content: options)
+        .labelsHidden()
+        .pickerStyle(.menu)
+    }
+  }
+}
+
 /// A grid of toggleable chips. Every checked option counts, which is the whole
 /// point: a session can accept several ways in or out at once.
 struct TriggerChipGrid<Option: Identifiable & Equatable>: View {
@@ -108,7 +127,7 @@ struct BlockingBreakFields: View {
     .labelsHidden()
 
     if draft.method.interruption != .none {
-      Picker("Length", selection: draft.releaseMinutesBinding) {
+      LabeledPickerRow(label: "Break length", selection: draft.releaseMinutesBinding) {
         ForEach(InterruptionMode.durationOptions, id: \.self) {
           Text("\($0) minute\($0 == 1 ? "" : "s")").tag($0)
         }
@@ -116,19 +135,29 @@ struct BlockingBreakFields: View {
     }
 
     if case .grantByButton = draft.method.interruption {
-      Picker("How many", selection: draft.releaseCountBinding) {
+      LabeledPickerRow(label: "Breaks allowed", selection: draft.releaseCountBinding) {
         ForEach(Array(InterruptionMode.countRange), id: \.self) { Text("\($0)").tag($0) }
       }
     }
 
     if case .timedBreak = draft.method.interruption {
-      Toggle("Split across several breaks", isOn: draft.allowMultipleBreaksBinding)
+      CustomToggle(
+        title: "Split across several breaks",
+        description: "Take multiple breaks until the total break time is used.",
+        isOn: draft.allowMultipleBreaksBinding,
+        isDisabled: disabled
+      )
     }
 
     if case .grantByScan(_, let maxCount) = draft.method.interruption {
-      Toggle("Limit how many", isOn: draft.limitScansBinding)
+      CustomToggle(
+        title: "Limit how many",
+        description: "Cap the number of scan breaks per session.",
+        isOn: draft.limitScansBinding,
+        isDisabled: disabled
+      )
       if maxCount != nil {
-        Picker("How many", selection: draft.releaseCountBinding) {
+        LabeledPickerRow(label: "Breaks allowed", selection: draft.releaseCountBinding) {
           ForEach(Array(InterruptionMode.countRange), id: \.self) { Text("\($0)").tag($0) }
         }
       }
@@ -168,18 +197,25 @@ struct BlockingStopFields: View {
       )
     }
 
-    Picker("Ends on its own", selection: draft.autoEndKindBinding) {
+    LabeledPickerRow(label: "Ends on its own", selection: draft.autoEndKindBinding) {
       Text("Never").tag(BlockedProfileDraft.AutoEndKind.never)
       Text("After a set time").tag(BlockedProfileDraft.AutoEndKind.afterMinutes)
       Text("When the schedule ends").tag(BlockedProfileDraft.AutoEndKind.whenScheduleEnds)
     }
 
     if draft.method.autoEnd.minutes != nil {
-      Picker("After", selection: draft.autoEndMinutesBinding) {
-        ForEach(AutoEnd.minuteOptions, id: \.self) { Text("\($0) minutes").tag($0) }
+      LabeledPickerRow(label: "After", selection: draft.autoEndMinutesBinding) {
+        ForEach(AutoEnd.minuteOptions, id: \.self) {
+          Text(AutoEnd.label(forMinutes: $0)).tag($0)
+        }
       }
 
-      Toggle("Allow stopping early", isOn: draft.methodBinding(\.allowsEarlyStop))
+      CustomToggle(
+        title: "Allow stopping early",
+        description: "When off, nothing can stop this session before the time is up.",
+        isOn: draft.methodBinding(\.allowsEarlyStop),
+        isDisabled: disabled
+      )
     }
 
     if draft.method.autoEnd == .whenScheduleEnds && !draft.method.start.contains(.schedule) {
@@ -231,7 +267,7 @@ struct BlockingEnforcementFields: View {
     .labelsHidden()
 
     if draft.method.enforcement.allowanceMinutes != nil {
-      Picker("Allowance", selection: draft.allowanceMinutesBinding) {
+      LabeledPickerRow(label: "Allowance", selection: draft.allowanceMinutesBinding) {
         ForEach(EnforcementMode.allowanceOptions, id: \.self) {
           Text(allowanceLabel($0)).tag($0)
         }
@@ -254,10 +290,15 @@ struct BlockingEmergencyFields: View {
   var disabled: Bool = false
 
   var body: some View {
-    Toggle("Emergency releases", isOn: draft.emergencyEnabledBinding)
+    CustomToggle(
+      title: "Emergency Unblock",
+      description: "Break the glass to end a session outright. Refills next session.",
+      isOn: draft.emergencyEnabledBinding,
+      isDisabled: disabled
+    )
 
     if draft.method.emergency.isEnabled {
-      Picker("Per session", selection: draft.emergencyCountBinding) {
+      LabeledPickerRow(label: "Uses per session", selection: draft.emergencyCountBinding) {
         ForEach(1...EmergencyPolicy.countRange.upperBound, id: \.self) {
           Text("\($0)").tag($0)
         }

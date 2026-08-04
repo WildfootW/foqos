@@ -45,7 +45,6 @@ enum SharedData {
     var schedule: BlockedProfileSchedule?
 
     var disableBackgroundStops: Bool?
-    var enableEmergencyUnblock: Bool?
 
     var blockingMethod: BlockingMethod? = nil
 
@@ -65,6 +64,8 @@ enum SharedData {
       if case .timedBreak(_, let allowMultiple) = method.interruption { return allowMultiple }
       return false
     }
+
+    var enableEmergencyUnblock: Bool? { method.emergency.isEnabled }
   }
 
   // MARK: – Serializable snapshot of a session (no profile object)

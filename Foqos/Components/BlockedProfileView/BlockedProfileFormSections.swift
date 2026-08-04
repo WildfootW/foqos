@@ -242,15 +242,7 @@ struct BlockedProfileSessionSafeguardsFields: View {
       isDisabled: disabled
     )
 
-    ProfileFieldDivider(isVisible: showsSeparators)
 
-    CustomToggle(
-      title: "Emergency Unblock",
-      description:
-        "Allow limited emergency unblocks during active sessions.",
-      isOn: $draft.enableEmergencyUnblock,
-      isDisabled: disabled
-    )
   }
 }
 

@@ -12,6 +12,9 @@ struct ActiveProfileSessionView: View {
   let elapsedTime: TimeInterval
   let displayTime: TimeInterval
   let isBreakAvailable: Bool
+  /// The profile trades scans for breaks; the break button opens a scanner
+  /// instead of starting a break outright.
+  var isScanBreakAvailable: Bool = false
   let isBreakActive: Bool
   let isPauseActive: Bool
   let onBreakTapped: () -> Void
@@ -34,7 +37,8 @@ struct ActiveProfileSessionView: View {
   }
 
   private var breakButtonTitle: String {
-    "Hold to " + (isBreakActive ? "Stop Break" : "Start Break")
+    if isBreakActive { return "Hold to Stop Break" }
+    return isScanBreakAvailable ? "Hold to Scan for a Break" : "Hold to Start Break"
   }
 
   private var focusMessage: String {
@@ -242,7 +246,7 @@ struct ActiveProfileSessionView: View {
 
   private var actionSection: some View {
     VStack(spacing: 12) {
-      if !isPauseActive && isBreakAvailable {
+      if !isPauseActive && (isBreakAvailable || isScanBreakAvailable) {
         ActiveSessionActionButton(
           title: breakButtonTitle,
           iconName: "cup.and.heat.waves.fill",
