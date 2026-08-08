@@ -64,3 +64,10 @@ fastlane/test_output
 build/
 
 .DS_Store
+
+# Local working notes and coding-agent instructions. Personal to this fork and
+# deliberately untracked: they describe the machine, the signing material and
+# the account behind it, none of which belongs in a public repository.
+docs/
+AGENTS.md
+CLAUDE.md
